@@ -62,13 +62,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[#F8FAFC] shadow-sm">
-        <header className="flex shrink-0 items-center justify-between bg-[#1A3C5E] px-4 py-3 text-white">
+        <header className="flex shrink-0 items-center justify-between bg-gradient-to-r from-[#1A3C5E] to-[#2D5F8A] px-4 py-3 text-white">
           <span className="text-base font-semibold">PuravCare OS</span>
           <button
             type="button"
             aria-label="Profile"
             onClick={() => setProfileOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-sm font-semibold text-[#1A3C5E]"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1A3C5E] text-sm font-semibold text-white ring-2 ring-white"
           >
             {initials(session.full_name)}
           </button>
