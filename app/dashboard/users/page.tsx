@@ -1,0 +1,374 @@
+"use client";
+
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+
+import { useAuth } from "@/lib/hooks/useAuth";
+
+type UserRow = {
+  id: string;
+  staff_id: string;
+  full_name: string;
+  role: string;
+  login_id: string;
+  is_active: boolean;
+};
+
+export default function UsersManagementPage() {
+  const { session, loading: authLoading } = useAuth();
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [editUser, setEditUser] = useState<UserRow | null>(null);
+
+  const load = useCallback(async () => {
+    if (!session || session.role !== "ceo") return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/users", { headers: { "x-actor-id": session.id } });
+      if (!res.ok) {
+        setError("Could not load users.");
+        return;
+      }
+      const data = (await res.json()) as { users?: UserRow[] };
+      setUsers(data.users ?? []);
+    } catch {
+      setError("Could not load users.");
+    } finally {
+      setLoading(false);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter(
+      (u) =>
+        u.full_name.toLowerCase().includes(q) ||
+        u.staff_id.toLowerCase().includes(q) ||
+        u.login_id.includes(q),
+    );
+  }, [users, search]);
+
+  if (authLoading || !session) {
+    return <p className="text-sm text-slate-500">Loading…</p>;
+  }
+
+  if (session.role !== "ceo") {
+    return (
+      <div className="rounded-xl border border-red-200 bg-white p-6 text-center text-red-700 shadow-sm">
+        Access denied
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">User management</h1>
+          <p className="text-sm text-slate-500">Staff accounts and access</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAddOpen(true)}
+          className="shrink-0 rounded-lg bg-[#1A3C5E] px-3 py-2 text-xs font-semibold text-white"
+        >
+          Add User
+        </button>
+      </div>
+
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search by name or staff ID…"
+        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+      />
+
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+      {loading ? (
+        <p className="text-sm text-slate-500">Loading…</p>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((u) => (
+            <button
+              key={u.id}
+              type="button"
+              onClick={() => setEditUser(u)}
+              className="flex w-full flex-col rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#1A3C5E]/40"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-slate-900">{u.full_name}</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    u.is_active ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {u.is_active ? "Active" : "Inactive"}
+                </span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                <span>Staff ID: {u.staff_id}</span>
+                <span>Login: {u.login_id}</span>
+                <span className="col-span-2 capitalize">Role: {u.role}</span>
+              </div>
+            </button>
+          ))}
+          {filtered.length === 0 ? <p className="text-sm text-slate-500">No users match.</p> : null}
+        </div>
+      )}
+
+      {addOpen ? (
+        <AddUserSheet
+          actorId={session.id}
+          onClose={() => setAddOpen(false)}
+          onSaved={() => {
+            setAddOpen(false);
+            void load();
+          }}
+        />
+      ) : null}
+
+      {editUser ? (
+        <EditUserSheet
+          actorId={session.id}
+          selfId={session.id}
+          user={editUser}
+          onClose={() => setEditUser(null)}
+          onSaved={() => {
+            setEditUser(null);
+            void load();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function AddUserSheet({
+  actorId,
+  onClose,
+  onSaved,
+}: {
+  actorId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState<"ops" | "staff" | "vendor">("staff");
+  const [loginId, setLoginId] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actor_id: actorId,
+          full_name: fullName,
+          role,
+          login_id: loginId,
+        }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        if (body.error === "duplicate_login") setError("Login ID already in use.");
+        else setError("Could not create user.");
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Could not create user.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+      <button type="button" aria-label="Close" className="flex-1" onClick={onClose} />
+      <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-[#1A3C5E]">Add user</h2>
+        <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Full name</label>
+            <input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Role</label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as "ops" | "staff" | "vendor")}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+            >
+              <option value="ops">Ops</option>
+              <option value="staff">Staff</option>
+              <option value="vendor">Vendor</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Login ID (10 digits)</label>
+            <input
+              inputMode="numeric"
+              maxLength={10}
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value.replace(/\D/g, ""))}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              required
+            />
+          </div>
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={saving || loginId.length !== 10}
+            className="w-full rounded-lg bg-[#1A3C5E] py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditUserSheet({
+  actorId,
+  selfId,
+  user,
+  onClose,
+  onSaved,
+}: {
+  actorId: string;
+  selfId: string;
+  user: UserRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [fullName, setFullName] = useState(user.full_name);
+  const [loginId, setLoginId] = useState(user.login_id);
+  const [role, setRole] = useState(user.role);
+  const [isActive, setIsActive] = useState(user.is_active);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actor_id: actorId,
+          full_name: fullName,
+          login_id: loginId,
+          role,
+          is_active: isActive,
+        }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        if (body.error === "duplicate_login") setError("Login ID already in use.");
+        else if (body.error === "cannot_deactivate_self") setError("You cannot deactivate yourself.");
+        else setError("Could not save changes.");
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Could not save changes.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+      <button type="button" aria-label="Close" className="flex-1" onClick={onClose} />
+      <div className="mx-auto max-h-[85vh] w-full max-w-[430px] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-[#1A3C5E]">Edit user</h2>
+        <p className="mt-1 text-xs text-slate-500">Staff ID: {user.staff_id} (cannot change)</p>
+
+        <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Full name</label>
+            <input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Login ID (10 digits)</label>
+            <input
+              inputMode="numeric"
+              maxLength={10}
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value.replace(/\D/g, ""))}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Role</label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+            >
+              <option value="ceo">CEO</option>
+              <option value="ops">Ops</option>
+              <option value="staff">Staff</option>
+              <option value="vendor">Vendor</option>
+            </select>
+          </div>
+          <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+            <span className="text-sm text-slate-700">Active</span>
+            <input
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => {
+                const next = e.target.checked;
+                if (user.id === selfId && !next) return;
+                setIsActive(next);
+              }}
+              className="h-4 w-4"
+            />
+          </label>
+          {user.id === selfId ? (
+            <p className="text-xs text-slate-500">You cannot deactivate your own account.</p>
+          ) : null}
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={saving || loginId.length !== 10}
+            className="w-full rounded-lg bg-[#1A3C5E] py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}

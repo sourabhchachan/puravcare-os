@@ -1,0 +1,150 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useMemo, useState } from "react";
+
+import { useAuth } from "@/lib/hooks/useAuth";
+import { getDashboardTabs, isTabActive } from "@/lib/dashboard/tabs";
+
+function roleLabel(role: string) {
+  const map: Record<string, string> = {
+    ceo: "CEO",
+    ops: "Ops",
+    staff: "Staff",
+    vendor: "Vendor",
+  };
+  return map[role] ?? role;
+}
+
+function initials(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  const first = parts[0][0] ?? "";
+  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? "") : (parts[0][1] ?? "");
+  return `${first}${last}`.toUpperCase();
+}
+
+const ceoLinks = [
+  { href: "/dashboard/users", label: "User Management" },
+  { href: "/dashboard/task-master", label: "Task Master" },
+  { href: "/dashboard/item-master", label: "Item Master" },
+  { href: "/dashboard/psi-framework", label: "PSI Framework" },
+  { href: "/dashboard/audit-log", label: "Audit Log" },
+  { href: "/dashboard/chain-templates", label: "Chain Templates" },
+  { href: "/dashboard/vendors", label: "Vendors" },
+] as const;
+
+function gridColsClass(count: number) {
+  if (count <= 2) return "grid-cols-2";
+  if (count === 3) return "grid-cols-3";
+  return "grid-cols-4";
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { session, loading, signOut } = useAuth({
+    requireSession: true,
+    enforcePasswordChange: true,
+  });
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const tabs = useMemo(() => (session ? getDashboardTabs(session.role) : []), [session]);
+
+  if (loading || !session) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] text-sm text-slate-500">
+        Loading…
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC]">
+      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[#F8FAFC] shadow-sm">
+        <header className="flex shrink-0 items-center justify-between bg-[#1A3C5E] px-4 py-3 text-white">
+          <span className="text-base font-semibold">PuravCare OS</span>
+          <button
+            type="button"
+            aria-label="Profile"
+            onClick={() => setProfileOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-sm font-semibold text-[#1A3C5E]"
+          >
+            {initials(session.full_name)}
+          </button>
+        </header>
+
+        <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4">{children}</main>
+
+        <nav
+          className={`fixed bottom-0 left-1/2 z-40 grid w-full max-w-[430px] -translate-x-1/2 border-t border-slate-200 bg-white shadow-[0_-4px_12px_rgba(15,23,42,0.08)] ${gridColsClass(tabs.length)}`}
+        >
+          {tabs.map((tab) => {
+            const active = isTabActive(pathname, tab.href);
+            const Icon = tab.icon;
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={`flex flex-col items-center gap-1 py-2 text-[11px] font-medium ${
+                  active ? "text-[#1A3C5E]" : "text-slate-500"
+                }`}
+              >
+                <Icon className={`h-5 w-5 ${active ? "text-[#1A3C5E]" : "text-slate-400"}`} />
+                {tab.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+
+      {profileOpen ? (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" role="presentation">
+          <button
+            type="button"
+            aria-label="Close profile"
+            className="flex-1"
+            onClick={() => setProfileOpen(false)}
+          />
+          <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+            <p className="text-lg font-semibold text-slate-900">{session.full_name}</p>
+            <p className="text-sm text-slate-500">
+              {roleLabel(session.role)} · Staff {session.staff_id}
+            </p>
+
+            {session.role === "ceo" ? (
+              <div className="mt-4 space-y-1 border-t border-slate-100 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Admin</p>
+                <ul className="space-y-1">
+                  {ceoLinks.map((item) => (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className="block rounded-lg px-3 py-2 text-sm text-[#1A3C5E] hover:bg-slate-50"
+                        onClick={() => setProfileOpen(false)}
+                      >
+                        {item.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              className="mt-6 w-full rounded-lg border border-slate-200 py-3 text-sm font-semibold text-slate-700"
+              onClick={() => {
+                setProfileOpen(false);
+                signOut();
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
