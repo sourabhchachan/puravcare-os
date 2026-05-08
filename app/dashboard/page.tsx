@@ -92,10 +92,7 @@ export default function DashboardHomePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
-        <p className="mt-1 text-sm text-slate-500">Agastya Care · Gurgaon</p>
-      </div>
+      <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
 
       <div className="grid grid-cols-2 gap-3">
         {STAT_CARDS.map((card) => {
