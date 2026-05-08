@@ -42,6 +42,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "invalid_credentials" }, { status: 401 });
     }
 
+    const { data: perm } = await supabase
+      .from("permissions")
+      .select("can_create_tasks, can_create_items")
+      .eq("user_id", user.id as string)
+      .maybeSingle();
+
     const session = {
       id: user.id as string,
       staff_id: user.staff_id as string,
@@ -49,6 +55,8 @@ export async function POST(request: Request) {
       role: user.role as "ceo" | "ops" | "staff" | "vendor",
       login_id: user.login_id as string,
       must_change_password: Boolean(user.must_change_password),
+      can_create_tasks: Boolean(perm?.can_create_tasks),
+      can_create_items: Boolean(perm?.can_create_items),
     };
 
     return NextResponse.json({ user: session });

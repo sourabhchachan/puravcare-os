@@ -132,6 +132,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             ) : null}
 
+            {session.role !== "ceo" && session.can_create_items ? (
+              <div className="mt-4 space-y-1 border-t border-slate-100 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Master data</p>
+                <ul className="space-y-1">
+                  <li>
+                    <Link
+                      href="/dashboard/item-master"
+                      className="block rounded-lg px-3 py-2 text-sm text-[#1A3C5E] hover:bg-slate-50"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      Item Master
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            ) : null}
+
             <button
               type="button"
               className="mt-6 w-full rounded-lg border border-slate-200 py-3 text-sm font-semibold text-slate-700"

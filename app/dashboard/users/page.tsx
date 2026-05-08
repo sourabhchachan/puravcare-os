@@ -4,6 +4,11 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/lib/hooks/useAuth";
 
+type Permissions = {
+  can_create_tasks: boolean;
+  can_create_items: boolean;
+};
+
 type UserRow = {
   id: string;
   staff_id: string;
@@ -11,6 +16,7 @@ type UserRow = {
   role: string;
   login_id: string;
   is_active: boolean;
+  permissions: Permissions | null;
 };
 
 export default function UsersManagementPage() {
@@ -163,7 +169,7 @@ function AddUserSheet({
   onSaved: () => void;
 }) {
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<"ops" | "staff" | "vendor">("staff");
+  const [role, setRole] = useState<"ceo" | "ops" | "staff" | "vendor">("staff");
   const [loginId, setLoginId] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -186,6 +192,7 @@ function AddUserSheet({
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         if (body.error === "duplicate_login") setError("Login ID already in use.");
+        else if (body.error === "too_many_ceos") setError("Maximum of 5 active CEO users allowed.");
         else setError("Could not create user.");
         return;
       }
@@ -217,9 +224,10 @@ function AddUserSheet({
             <label className="mb-1 block text-xs font-medium text-slate-600">Role</label>
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value as "ops" | "staff" | "vendor")}
+              onChange={(e) => setRole(e.target.value as typeof role)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
             >
+              <option value="ceo">CEO</option>
               <option value="ops">Ops</option>
               <option value="staff">Staff</option>
               <option value="vendor">Vendor</option>
@@ -267,29 +275,40 @@ function EditUserSheet({
   const [loginId, setLoginId] = useState(user.login_id);
   const [role, setRole] = useState(user.role);
   const [isActive, setIsActive] = useState(user.is_active);
+  const [canCreateTasks, setCanCreateTasks] = useState(Boolean(user.permissions?.can_create_tasks));
+  const [canCreateItems, setCanCreateItems] = useState(Boolean(user.permissions?.can_create_items));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const showPermissions = role === "ops" || role === "staff";
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     setSaving(true);
     try {
+      const payload: Record<string, unknown> = {
+        actor_id: actorId,
+        full_name: fullName,
+        login_id: loginId,
+        role,
+        is_active: isActive,
+      };
+      if (showPermissions) {
+        payload.can_create_tasks = canCreateTasks;
+        payload.can_create_items = canCreateItems;
+      }
+
       const res = await fetch(`/api/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          actor_id: actorId,
-          full_name: fullName,
-          login_id: loginId,
-          role,
-          is_active: isActive,
-        }),
+        body: JSON.stringify(payload),
       });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         if (body.error === "duplicate_login") setError("Login ID already in use.");
         else if (body.error === "cannot_deactivate_self") setError("You cannot deactivate yourself.");
+        else if (body.error === "too_many_ceos") setError("Maximum of 5 active CEO users allowed.");
         else setError("Could not save changes.");
         return;
       }
@@ -334,7 +353,19 @@ function EditUserSheet({
             <label className="mb-1 block text-xs font-medium text-slate-600">Role</label>
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value)}
+              onChange={(e) => {
+                const r = e.target.value;
+                const prev = role;
+                setRole(r);
+                if ((prev === "ops" || prev === "staff") && r !== "ops" && r !== "staff") {
+                  setCanCreateTasks(false);
+                  setCanCreateItems(false);
+                }
+                if ((r === "ops" || r === "staff") && prev !== "ops" && prev !== "staff") {
+                  setCanCreateTasks(Boolean(user.permissions?.can_create_tasks));
+                  setCanCreateItems(Boolean(user.permissions?.can_create_items));
+                }
+              }}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
             >
               <option value="ceo">CEO</option>
@@ -343,6 +374,21 @@ function EditUserSheet({
               <option value="vendor">Vendor</option>
             </select>
           </div>
+
+          {showPermissions ? (
+            <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Permissions</p>
+              <label className="flex items-center justify-between gap-2 text-sm text-slate-800">
+                <span>Can create tasks</span>
+                <input type="checkbox" checked={canCreateTasks} onChange={(e) => setCanCreateTasks(e.target.checked)} />
+              </label>
+              <label className="flex items-center justify-between gap-2 text-sm text-slate-800">
+                <span>Can create items</span>
+                <input type="checkbox" checked={canCreateItems} onChange={(e) => setCanCreateItems(e.target.checked)} />
+              </label>
+            </div>
+          ) : null}
+
           <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
             <span className="text-sm text-slate-700">Active</span>
             <input
