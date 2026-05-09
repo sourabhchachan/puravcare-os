@@ -18,15 +18,15 @@ const ToastContext = createContext<ToastApi | null>(null);
 function toastBg(kind: ToastKind) {
   switch (kind) {
     case "success":
-      return "bg-emerald-600";
+      return "bg-green-50 border border-green-200 text-green-800";
     case "error":
-      return "bg-red-600";
+      return "bg-red-50 border border-red-200 text-red-800";
     case "warning":
-      return "bg-amber-500";
+      return "bg-amber-50 border border-amber-200 text-amber-800";
     case "info":
-      return "bg-[#2563EB]";
+      return "bg-blue-50 border border-blue-200 text-blue-800";
     default:
-      return "bg-slate-700";
+      return "bg-slate-50 border border-slate-200 text-slate-800";
   }
 }
 
@@ -73,7 +73,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto rounded-lg px-4 py-3 text-center text-sm font-medium text-white shadow-lg ${toastBg(t.kind)}`}
+            className={`pointer-events-auto rounded-xl px-4 py-3 text-center text-sm font-medium shadow-lg ${toastBg(t.kind)}`}
             role="status"
           >
             {t.message}

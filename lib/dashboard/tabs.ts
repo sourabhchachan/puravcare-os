@@ -5,7 +5,6 @@ import {
   IconBill,
   IconCashbook,
   IconInvoice,
-  IconNotice,
   IconPending,
   IconPatients,
   IconPulse,
@@ -27,8 +26,8 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard", label: "Pulse", icon: IconPulse },
         { href: "/dashboard/patients", label: "Patients", icon: IconPatients },
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
+        { href: "/dashboard/cashbook", label: "Cashbook", icon: IconCashbook },
         { href: "/dashboard/master-bill", label: "Master Bill", icon: IconBill },
-        { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
       ];
     case "ops":
       return [
@@ -36,14 +35,12 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
         { href: "/dashboard/cashbook", label: "Cashbook", icon: IconCashbook },
         { href: "/dashboard/vendors", label: "Vendors", icon: IconVendors },
-        { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
       ];
     case "staff":
       return [
         { href: "/dashboard/patients", label: "Patients", icon: IconPatients },
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
         { href: "/dashboard/cashbook", label: "Cashbook", icon: IconCashbook },
-        { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
       ];
     case "vendor":
       return [

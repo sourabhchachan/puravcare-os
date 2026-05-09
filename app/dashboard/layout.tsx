@@ -26,6 +26,14 @@ function initials(fullName: string) {
   return `${first}${last}`.toUpperCase();
 }
 
+function ChevronRight({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} aria-hidden>
+      <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 const ceoLinks = [
   { href: "/dashboard/users", label: "User Management" },
   { href: "/dashboard/task-master", label: "Task Master" },
@@ -61,15 +69,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[#F9FAFB] shadow-sm">
-        <header className="flex shrink-0 items-center justify-between gap-3 bg-blue-600 px-4 py-3 text-white shadow-md">
-          <span className="min-w-0 shrink text-base font-semibold">PuravCare OS</span>
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#E5E7EB] bg-white px-4 py-3">
+          <span className="min-w-0 shrink text-base font-semibold text-[#111827]">PuravCare OS</span>
           <div className="flex shrink-0 items-center gap-2">
             <NotificationBell actorId={session.id} />
             <button
               type="button"
               aria-label="Profile"
               onClick={() => setProfileOpen(true)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2563EB] text-sm font-semibold text-white ring-2 ring-white"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E5E7EB] bg-white text-sm font-semibold text-[#6B7280]"
             >
               {initials(session.full_name)}
             </button>
@@ -79,7 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 overflow-y-auto scroll-smooth px-4 pb-24 pt-4">{children}</main>
 
         <nav
-          className={`fixed bottom-0 left-1/2 z-40 grid w-full max-w-[430px] -translate-x-1/2 border-t border-gray-100 bg-white shadow-lg ${gridColsClass(tabs.length)}`}
+          className={`fixed bottom-0 left-1/2 z-40 grid w-full max-w-[430px] -translate-x-1/2 border-t border-[#E5E7EB] bg-white ${gridColsClass(tabs.length)}`}
         >
           {tabs.map((tab) => {
             const active = isTabActive(pathname, tab.href);
@@ -88,11 +96,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`flex flex-col items-center gap-1 py-2 text-[11px] font-medium ${
-                  active ? "text-[#2563EB]" : "text-slate-500"
+                className={`relative flex flex-col items-center gap-1 py-2 text-[11px] font-medium ${
+                  active ? "text-[#2563EB]" : "text-[#9CA3AF]"
                 }`}
               >
-                <Icon className={`h-5 w-5 ${active ? "text-[#2563EB]" : "text-slate-400"}`} />
+                {active ? <span className="absolute left-2 right-2 top-0 h-0.5 rounded-full bg-[#2563EB]" /> : null}
+                <Icon className={`h-5 w-5 ${active ? "text-[#2563EB]" : "text-[#9CA3AF]"}`} />
                 {tab.label}
               </Link>
             );
@@ -108,7 +117,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             className="flex-1"
             onClick={() => setProfileOpen(false)}
           />
-          <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+          <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-2xl">
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
             <p className="text-lg font-semibold text-slate-900">{session.full_name}</p>
             <p className="text-sm text-slate-500">
@@ -116,53 +125,58 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </p>
 
             <div className="mt-4 space-y-1 border-t border-slate-100 pt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Operations</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Operations</p>
               <ul className="space-y-1">
                 <li>
                   <Link
                     href="/dashboard/psi"
-                    className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                    className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-slate-50"
                     onClick={() => setProfileOpen(false)}
                   >
                     PSI Framework
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/dashboard/chain-templates"
-                    className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                    className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-slate-50"
                     onClick={() => setProfileOpen(false)}
                   >
                     Chain Templates
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
                 </li>
                 {(session.role === "ceo" || session.role === "ops") && (
                   <li>
                     <Link
                       href="/dashboard/vendors"
-                      className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                      className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-slate-50"
                       onClick={() => setProfileOpen(false)}
                     >
                       Vendors
+                      <ChevronRight className="h-4 w-4 text-gray-400" />
                     </Link>
                   </li>
                 )}
                 <li>
                   <Link
                     href="/dashboard/my-work"
-                    className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                    className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-slate-50"
                     onClick={() => setProfileOpen(false)}
                   >
                     My work
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
                 </li>
                 <li>
                   <Link
                     href="/dashboard/notices"
-                    className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                    className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-slate-50"
                     onClick={() => setProfileOpen(false)}
                   >
                     Notices
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
                 </li>
               </ul>
@@ -170,16 +184,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {session.role === "ceo" ? (
               <div className="mt-4 space-y-1 border-t border-slate-100 pt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Admin</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Admin</p>
                 <ul className="space-y-1">
                   {ceoLinks.map((item) => (
                     <li key={item.href}>
                       <Link
                         href={item.href}
-                        className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                        className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-slate-50"
                         onClick={() => setProfileOpen(false)}
                       >
                         {item.label}
+                        <ChevronRight className="h-4 w-4 text-gray-400" />
                       </Link>
                     </li>
                   ))}
@@ -189,15 +204,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {session.role !== "ceo" && session.can_create_items ? (
               <div className="mt-4 space-y-1 border-t border-slate-100 pt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Master data</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Master data</p>
                 <ul className="space-y-1">
                   <li>
                     <Link
                       href="/dashboard/item-master"
-                      className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                      className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-slate-50"
                       onClick={() => setProfileOpen(false)}
                     >
                       Item Master
+                      <ChevronRight className="h-4 w-4 text-gray-400" />
                     </Link>
                   </li>
                 </ul>
@@ -206,7 +222,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             <button
               type="button"
-              className="mt-6 w-full rounded-lg border border-slate-200 py-3 text-sm font-semibold text-slate-700"
+              className="mt-6 w-full rounded-xl py-3 text-sm font-semibold text-red-500 hover:bg-red-50"
               onClick={() => {
                 setProfileOpen(false);
                 signOut();

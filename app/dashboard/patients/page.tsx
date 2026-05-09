@@ -18,6 +18,16 @@ type PatientRow = {
   status: "active" | "discharged";
 };
 
+function EmptyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <circle cx="9" cy="8" r="3" />
+      <circle cx="17" cy="10" r="2.5" />
+      <path d="M3 20a6 6 0 0112 0M13.5 20a4.5 4.5 0 019 0" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function fmtDate(value: string) {
   try {
     return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -68,8 +78,8 @@ export default function PatientsPage() {
   return (
     <div className="space-y-4 pb-8">
       <div className="flex items-start justify-between gap-2">
-        <h1 className="text-xl font-semibold text-slate-900">Patients</h1>
-        <Link href="/dashboard/patients/new" className="rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white">
+        <h1 className="text-xl font-semibold text-gray-900">Patients</h1>
+        <Link href="/dashboard/patients/new" className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-all active:scale-95 hover:bg-blue-700">
           New Patient
         </Link>
       </div>
@@ -79,7 +89,7 @@ export default function PatientsPage() {
           type="button"
           onClick={() => setStatus("active")}
           className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-            status === "active" ? "bg-[#2563EB] text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
+            status === "active" ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
           }`}
         >
           Active
@@ -88,7 +98,7 @@ export default function PatientsPage() {
           type="button"
           onClick={() => setStatus("discharged")}
           className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-            status === "discharged" ? "bg-[#2563EB] text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
+            status === "discharged" ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
           }`}
         >
           Discharged
@@ -105,7 +115,11 @@ export default function PatientsPage() {
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Loading...</p>
+        <div className="space-y-3">
+          <div className="pc-skeleton h-24" />
+          <div className="pc-skeleton h-24" />
+          <div className="pc-skeleton h-24" />
+        </div>
       ) : (
         <ul className="space-y-2">
           {filtered.map((p) => (
@@ -133,7 +147,12 @@ export default function PatientsPage() {
               </Link>
             </li>
           ))}
-          {filtered.length === 0 ? <p className="text-sm text-slate-500">No patients found.</p> : null}
+          {filtered.length === 0 ? (
+            <div className="pc-empty-state">
+              <EmptyIcon className="h-8 w-8 text-gray-300" />
+              <p className="text-sm text-gray-500">No items yet</p>
+            </div>
+          ) : null}
         </ul>
       )}
     </div>

@@ -63,6 +63,30 @@ function IconUnlinked({ className }: { className?: string }) {
   );
 }
 
+function PulseCard({
+  href,
+  icon,
+  iconTone,
+  label,
+  value,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  iconTone: string;
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <Link href={href} className="pc-card block transition hover:-translate-y-0.5">
+      <div className="flex items-start justify-between gap-3">
+        <span className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${iconTone}`}>{icon}</span>
+      </div>
+      <p className="mt-3 text-xs uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
+    </Link>
+  );
+}
+
 type Pulse = {
   tasks_today: number;
   overdue: number;
@@ -124,50 +148,43 @@ export default function DashboardHomePage() {
       <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
 
       <div className="grid grid-cols-2 gap-3">
-        <Link
+        <PulseCard
           href="/dashboard/tasks"
-          className="relative block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#3B82F6] bg-blue-50 p-4 shadow-sm transition hover:opacity-95"
-        >
-          <IconClipboard className="absolute right-3 top-3 h-7 w-7 shrink-0 text-[#3B82F6]" />
-          <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">Total Tasks Today</p>
-          <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{p ? p.tasks_today : "—"}</p>
-        </Link>
-
-        <Link
+          icon={<IconClipboard className="h-5 w-5 text-blue-600" />}
+          iconTone="bg-blue-100"
+          label="Total Tasks Today"
+          value={p ? p.tasks_today : "—"}
+        />
+        <PulseCard
           href="/dashboard/tasks?filter=overdue"
-          className="relative block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#EF4444] bg-red-50 p-4 shadow-sm transition hover:opacity-95"
-        >
-          <IconAlert className="absolute right-3 top-3 h-7 w-7 shrink-0 text-[#EF4444]" />
-          <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">Overdue</p>
-          <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{p ? p.overdue : "—"}</p>
-        </Link>
-
-        <Link
+          icon={<IconAlert className="h-5 w-5 text-red-600" />}
+          iconTone="bg-red-100"
+          label="Overdue"
+          value={p ? p.overdue : "—"}
+        />
+        <PulseCard
           href="/dashboard/patients"
-          className="relative block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#10B981] bg-green-50 p-4 shadow-sm transition hover:opacity-95"
-        >
-          <IconUser className="absolute right-3 top-3 h-7 w-7 shrink-0 text-[#10B981]" />
-          <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">Active Patients</p>
-          <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{p ? p.active_patients : "—"}</p>
-        </Link>
-
-        <Link
+          icon={<IconUser className="h-5 w-5 text-green-600" />}
+          iconTone="bg-green-100"
+          label="Active Patients"
+          value={p ? p.active_patients : "—"}
+        />
+        <PulseCard
           href="/dashboard/cashbook"
-          className="relative block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#F59E0B] bg-amber-50 p-4 shadow-sm transition hover:opacity-95"
-        >
-          <IconRupee className="absolute right-3 top-2.5 text-2xl font-extrabold leading-none text-[#F59E0B]" />
-          <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">Cash Balance</p>
-          <p className="mt-3 text-lg font-bold tabular-nums leading-tight text-slate-900">{p ? formatInr(p.cash_balance) : "—"}</p>
-        </Link>
-
-        <Link
-          href="/dashboard/tasks?filter=unlinked"
-          className="relative col-span-2 block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#F59E0B] bg-amber-50 p-4 shadow-sm transition hover:opacity-95"
-        >
-          <IconUnlinked className="absolute right-3 top-3 h-7 w-7 shrink-0 text-[#F59E0B]" />
-          <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">Tasks Unlinked to PSI</p>
-          <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{p ? p.tasks_unlinked_psi : "—"}</p>
-        </Link>
+          icon={<IconRupee className="text-base font-bold text-amber-600" />}
+          iconTone="bg-amber-100"
+          label="Cash Balance"
+          value={p ? formatInr(p.cash_balance) : "—"}
+        />
+        <div className="col-span-2">
+          <PulseCard
+            href="/dashboard/tasks?filter=unlinked"
+            icon={<IconUnlinked className="h-5 w-5 text-orange-600" />}
+            iconTone="bg-orange-100"
+            label="Tasks Unlinked to PSI"
+            value={p ? p.tasks_unlinked_psi : "—"}
+          />
+        </div>
       </div>
     </div>
   );

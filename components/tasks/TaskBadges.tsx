@@ -1,33 +1,33 @@
 const PRIORITY_STYLES: Record<string, string> = {
-  critical: "bg-red-100 text-red-800 ring-1 ring-red-200",
-  high: "bg-orange-100 text-orange-800 ring-1 ring-orange-200",
-  normal: "bg-blue-100 text-blue-800 ring-1 ring-blue-200",
-  low: "bg-slate-100 text-slate-600 ring-1 ring-slate-200",
+  critical: "bg-red-100 text-red-700",
+  high: "bg-orange-100 text-orange-700",
+  normal: "bg-blue-100 text-blue-700",
+  low: "bg-gray-100 text-gray-600",
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-900 ring-1 ring-yellow-200",
-  acknowledged: "bg-amber-100 text-amber-900 ring-1 ring-amber-200",
-  in_progress: "bg-blue-100 text-blue-800 ring-1 ring-blue-200",
-  done: "bg-green-100 text-green-800 ring-1 ring-green-200",
-  confirmed: "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200",
-  closed: "bg-slate-100 text-slate-600 ring-1 ring-slate-200",
-  blocked: "bg-red-100 text-red-800 ring-1 ring-red-200",
+  pending: "bg-yellow-100 text-yellow-700",
+  acknowledged: "bg-blue-100 text-blue-700",
+  in_progress: "bg-blue-100 text-blue-700",
+  done: "bg-green-100 text-green-700",
+  confirmed: "bg-green-100 text-green-700",
+  closed: "bg-gray-100 text-gray-600",
+  blocked: "bg-red-100 text-red-700",
 };
 
 export function PriorityBadge({ priority }: { priority: string }) {
   const cls = PRIORITY_STYLES[priority] ?? PRIORITY_STYLES.normal;
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cls}`}>
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide ${cls}`}>
       {priority}
     </span>
   );
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  const cls = STATUS_STYLES[status] ?? "bg-slate-100 text-slate-600 ring-1 ring-slate-200";
+  const cls = STATUS_STYLES[status] ?? "bg-gray-100 text-gray-600";
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cls}`}>
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide ${cls}`}>
       {status.replace(/_/g, " ")}
     </span>
   );

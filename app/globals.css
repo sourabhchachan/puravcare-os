@@ -1,20 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f9fafb;
-  --foreground: #0f172a;
-  --primary: #2563eb;
+  --color-primary: #2563eb;
+  --color-bg: #f9fafb;
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+  --radius-card: 16px;
+  --radius-control: 12px;
+  --radius-pill: 999px;
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-text-primary);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
   font-family: var(--font-sans);
 }
 
@@ -43,7 +51,9 @@ body {
 
 @layer components {
   .pc-card {
-    @apply rounded-2xl border border-gray-100 bg-white p-4 shadow-sm;
+    @apply rounded-2xl border bg-white p-4;
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-soft);
   }
 
   .pc-btn-primary {
@@ -67,10 +77,14 @@ body {
   }
 
   .pc-empty-state {
-    @apply rounded-2xl border border-gray-100 bg-white p-4 shadow-sm flex flex-col items-center justify-center gap-2 py-10 text-center text-gray-500;
+    @apply rounded-2xl border bg-white p-4 flex flex-col items-center justify-center gap-2 py-10 text-center text-gray-500;
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-soft);
   }
 
   .pc-skeleton {
-    @apply animate-pulse rounded-2xl border border-gray-100 bg-white p-4 shadow-sm;
+    @apply animate-pulse rounded-2xl border bg-white p-4;
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-soft);
   }
 }

@@ -26,6 +26,15 @@ const BASE_FILTERS = [
 
 type FilterId = (typeof BASE_FILTERS)[number]["id"] | "unlinked";
 
+function EmptyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M9 11l3 3L22 4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function formatDue(due: string | null) {
   if (!due) return "—";
   try {
@@ -40,7 +49,15 @@ function formatDue(due: string | null) {
 
 export default function TasksListPage() {
   return (
-    <Suspense fallback={<div className="space-y-4"><p className="text-sm text-slate-500">Loading…</p></div>}>
+    <Suspense
+      fallback={
+        <div className="space-y-3">
+          <div className="pc-skeleton h-24" />
+          <div className="pc-skeleton h-24" />
+          <div className="pc-skeleton h-24" />
+        </div>
+      }
+    >
       <TasksListInner />
     </Suspense>
   );
@@ -108,12 +125,12 @@ function TasksListInner() {
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-2">
-        <h1 className="text-xl font-semibold text-slate-900">Tasks</h1>
+        <h1 className="text-xl font-semibold text-gray-900">Tasks</h1>
         <div className="flex shrink-0 flex-col items-end gap-2">
           {canCreate ? (
             <Link
               href="/dashboard/tasks/new"
-              className="rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white shadow-sm"
+              className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-all active:scale-95 hover:bg-blue-700"
             >
               New Task
             </Link>
@@ -132,8 +149,8 @@ function TasksListInner() {
             key={f.id}
             type="button"
             onClick={() => setFilterAndUrl(f.id)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-              filter === f.id ? "bg-[#2563EB] text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+              filter === f.id ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
             }`}
           >
             {f.label}
@@ -144,9 +161,16 @@ function TasksListInner() {
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <div className="space-y-3">
+          <div className="pc-skeleton h-24" />
+          <div className="pc-skeleton h-24" />
+          <div className="pc-skeleton h-24" />
+        </div>
       ) : tasks.length === 0 ? (
-        <p className="text-sm text-slate-500">No tasks match this filter.</p>
+        <div className="pc-empty-state">
+          <EmptyIcon className="h-8 w-8 text-gray-300" />
+          <p className="text-sm text-gray-500">No items yet</p>
+        </div>
       ) : (
         <ul className="space-y-3">
           {tasks.map((t) => (
