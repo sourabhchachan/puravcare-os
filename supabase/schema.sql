@@ -115,7 +115,7 @@ CREATE TABLE public.users (
 CREATE TABLE public.permissions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES public.users (id) ON DELETE CASCADE,
-  can_create_tasks boolean NOT NULL DEFAULT false,
+  can_create_tasks boolean NOT NULL DEFAULT true,
   can_create_items boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -191,7 +191,7 @@ CREATE TABLE public.psi_nodes (
 CREATE TABLE public.task_master (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title text NOT NULL,
-  task_type text CHECK (task_type IN ('patient', 'ops')),
+  task_type text CHECK (task_type IN ('ops', 'clinical', 'patient')),
   default_assignee_role text,
   proof_type text CHECK (proof_type IN ('tap', 'photo', 'countersign')),
   recurrence text CHECK (recurrence IN ('one-time', 'hourly', '2h', '4h', '6h', '8h', 'daily', 'weekly')),
@@ -208,7 +208,7 @@ CREATE TABLE public.task_master (
 CREATE TABLE public.tasks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title text NOT NULL,
-  task_type text CHECK (task_type IN ('patient', 'ops')),
+  task_type text CHECK (task_type IN ('ops', 'clinical', 'patient')),
   assignee_id uuid NOT NULL REFERENCES public.users (id),
   created_by uuid NOT NULL REFERENCES public.users (id),
   patient_id uuid REFERENCES public.patients (id),

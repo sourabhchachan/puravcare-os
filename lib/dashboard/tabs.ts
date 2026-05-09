@@ -37,6 +37,7 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
     case "staff":
       return [
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
+        { href: "/dashboard/cashbook", label: "Cashbook", icon: IconCashbook },
         { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
       ];
     case "vendor":

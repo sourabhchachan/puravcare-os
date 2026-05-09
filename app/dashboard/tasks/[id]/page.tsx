@@ -143,7 +143,7 @@ export default function TaskDetailPage() {
       <div className="rounded-xl border border-red-200 bg-white p-4 text-sm text-red-700">
         {error || "Task not found"}
         <div className="mt-3">
-          <Link href="/dashboard/tasks" className="font-medium text-[#1A3C5E] underline">
+          <Link href="/dashboard/tasks" className="font-medium text-[#2563EB] underline">
             Back
           </Link>
         </div>
@@ -169,7 +169,7 @@ export default function TaskDetailPage() {
   return (
     <div className="space-y-4 pb-8">
       <div className="flex items-center justify-between gap-2">
-        <Link href="/dashboard/tasks" className="text-xs font-medium text-[#1A3C5E] underline">
+        <Link href="/dashboard/tasks" className="text-xs font-medium text-[#2563EB] underline">
           ← Tasks
         </Link>
       </div>
@@ -190,7 +190,9 @@ export default function TaskDetailPage() {
         <dl className="mt-4 space-y-2 text-sm text-slate-700">
           <div className="flex justify-between gap-2">
             <dt className="text-slate-500">Type</dt>
-            <dd className="font-medium capitalize">{task.task_type as string}</dd>
+            <dd className="font-medium capitalize">
+              {task.task_type === "clinical" || task.task_type === "patient" ? "Clinical" : "Ops"}
+            </dd>
           </div>
           <div className="flex justify-between gap-2">
             <dt className="text-slate-500">Assignee</dt>
@@ -246,7 +248,7 @@ export default function TaskDetailPage() {
               <dd>
                 <a
                   href={task.proof_photo_url as string}
-                  className="break-all text-[#1A3C5E] underline"
+                  className="break-all text-[#2563EB] underline"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -267,7 +269,7 @@ export default function TaskDetailPage() {
             type="button"
             disabled={busy}
             onClick={() => void patch("acknowledge")}
-            className="w-full rounded-lg bg-[#1A3C5E] py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="w-full rounded-lg bg-[#2563EB] py-2.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             Acknowledge
           </button>
@@ -278,7 +280,7 @@ export default function TaskDetailPage() {
             type="button"
             disabled={busy}
             onClick={() => void patch("mark_done")}
-            className="w-full rounded-lg bg-[#1A3C5E] py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="w-full rounded-lg bg-[#2563EB] py-2.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             Mark done
           </button>
@@ -290,14 +292,14 @@ export default function TaskDetailPage() {
             <input
               value={photoUrl}
               onChange={(e) => setPhotoUrl(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               placeholder="https://…"
             />
             <button
               type="button"
               disabled={busy || !photoUrl.trim()}
               onClick={() => void patch("upload_proof", { proof_photo_url: photoUrl.trim() })}
-              className="w-full rounded-lg bg-[#1A3C5E] py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              className="w-full rounded-lg bg-[#2563EB] py-2.5 text-sm font-semibold text-white disabled:opacity-50"
             >
               Upload proof & mark done
             </button>
@@ -332,7 +334,7 @@ export default function TaskDetailPage() {
             <textarea
               value={blockNote}
               onChange={(e) => setBlockNote(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               rows={2}
             />
             <button
@@ -383,7 +385,7 @@ export default function TaskDetailPage() {
         <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
           <button type="button" className="flex-1" aria-label="Close" onClick={() => setReassignOpen(false)} />
           <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
-            <h3 className="text-lg font-semibold text-[#1A3C5E]">Reassign task</h3>
+            <h3 className="text-lg font-semibold text-[#2563EB]">Reassign task</h3>
             <div className="mt-3 space-y-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">New assignee</label>
@@ -424,7 +426,7 @@ export default function TaskDetailPage() {
                     setNewAssignee("");
                   }
                 }}
-                className="w-full rounded-lg bg-[#1A3C5E] py-3 text-sm font-semibold text-white disabled:opacity-50"
+                className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
                 Save reassign
               </button>

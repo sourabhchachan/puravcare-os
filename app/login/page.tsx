@@ -67,9 +67,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 py-8">
+    <main className="flex min-h-screen items-center justify-center bg-[#F9FAFB] px-4 py-8">
       <div className="w-full max-w-[430px] rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-center text-2xl font-bold text-[#1A3C5E]">PuravCare OS</h1>
+        <h1 className="text-center text-2xl font-bold text-[#2563EB]">PuravCare OS</h1>
         <p className="mt-1 text-center text-sm text-slate-600">Agastya Care, Gurgaon</p>
 
         <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
@@ -85,7 +85,7 @@ export default function LoginPage() {
               minLength={10}
               value={loginId}
               onChange={(e) => setLoginId(e.target.value.replace(/\D/g, ""))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none ring-[#2563EB] focus:ring-2"
               placeholder="Enter 10-digit login ID"
               required
             />
@@ -104,7 +104,7 @@ export default function LoginPage() {
               minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value.replace(/\D/g, ""))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none ring-[#2563EB] focus:ring-2"
               placeholder="Enter 6-digit password"
               required
             />
@@ -113,7 +113,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-[#1A3C5E] py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Signing in…" : "Sign In"}
           </button>

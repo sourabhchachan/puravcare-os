@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/lib/hooks/useAuth";
+import { normalizeTemplateTaskType } from "@/lib/task/taskTypes";
 
 type UserOpt = { id: string; full_name: string; role: string };
 type PatientOpt = { id: string; full_name: string; uhid: string };
 type PsiOpt = { id: string; title: string; type: string };
+type TemplateOpt = { id: string; title: string; task_type: "ops" | "clinical" };
 
 const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly"] as const;
 
@@ -18,13 +20,13 @@ export default function NewTaskPage() {
   const [users, setUsers] = useState<UserOpt[]>([]);
   const [patients, setPatients] = useState<PatientOpt[]>([]);
   const [psiNodes, setPsiNodes] = useState<PsiOpt[]>([]);
+  const [templates, setTemplates] = useState<TemplateOpt[]>([]);
   const [allowed, setAllowed] = useState(false);
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const [title, setTitle] = useState("");
-  const [taskType, setTaskType] = useState<"patient" | "ops">("ops");
+  const [taskMasterId, setTaskMasterId] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [dueLocal, setDueLocal] = useState("");
   const [priority, setPriority] = useState<"critical" | "high" | "normal" | "low">("normal");
@@ -33,6 +35,13 @@ export default function NewTaskPage() {
   const [recurrence, setRecurrence] = useState<(typeof RECURRENCE)[number]>("one-time");
   const [patientId, setPatientId] = useState("");
   const [psiNodeId, setPsiNodeId] = useState("");
+
+  const selectedTemplate = useMemo(
+    () => templates.find((t) => t.id === taskMasterId) ?? null,
+    [templates, taskMasterId],
+  );
+
+  const isClinical = selectedTemplate?.task_type === "clinical";
 
   useEffect(() => {
     if (!session) return;
@@ -45,6 +54,7 @@ export default function NewTaskPage() {
           users?: UserOpt[];
           patients?: PatientOpt[];
           psi_nodes?: PsiOpt[];
+          task_templates?: { id: string; title: string; task_type: string }[];
           can_create_tasks?: boolean;
         };
         if (!res.ok || cancelled) return;
@@ -56,6 +66,12 @@ export default function NewTaskPage() {
         setUsers(data.users ?? []);
         setPatients(data.patients ?? []);
         setPsiNodes(data.psi_nodes ?? []);
+        setTemplates(
+          (data.task_templates ?? []).map((t) => ({
+            ...t,
+            task_type: normalizeTemplateTaskType(t.task_type),
+          })),
+        );
       } catch {
         setError("Could not load form.");
       } finally {
@@ -79,18 +95,17 @@ export default function NewTaskPage() {
       }
       const res = await fetch("/api/tasks", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-actor-id": session.id },
         body: JSON.stringify({
           actor_id: session.id,
-          title,
-          task_type: taskType,
+          task_master_id: taskMasterId,
           assignee_id: assigneeId,
           due_at,
           priority,
           proof_type: proofType,
           countersign_user_id: proofType === "countersign" ? countersignUserId : null,
           recurrence,
-          patient_id: taskType === "patient" ? patientId : null,
+          patient_id: isClinical ? patientId : null,
           psi_node_id: psiNodeId || null,
         }),
       });
@@ -118,7 +133,7 @@ export default function NewTaskPage() {
       <div className="rounded-xl border border-red-200 bg-white p-4 text-sm text-red-700 shadow-sm">
         You do not have permission to create tasks.
         <div className="mt-3">
-          <Link href="/dashboard/tasks" className="font-medium text-[#1A3C5E] underline">
+          <Link href="/dashboard/tasks" className="font-medium text-[#2563EB] underline">
             Back to tasks
           </Link>
         </div>
@@ -126,45 +141,47 @@ export default function NewTaskPage() {
     );
   }
 
+  const disableSubmit =
+    saving ||
+    !taskMasterId ||
+    !assigneeId ||
+    (isClinical && !patientId) ||
+    (proofType === "countersign" && !countersignUserId);
+
   return (
     <div className="space-y-4 pb-8">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold text-slate-900">New task</h1>
-        <Link href="/dashboard/tasks" className="text-xs font-medium text-[#1A3C5E] underline">
+        <Link href="/dashboard/tasks" className="text-xs font-medium text-[#2563EB] underline">
           Cancel
         </Link>
       </div>
 
       <form className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" onSubmit={handleSubmit}>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Title</label>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Task type</label>
+          <label className="mb-1 block text-xs font-medium text-slate-600">Task template</label>
           <select
-            value={taskType}
-            onChange={(e) => setTaskType(e.target.value as "patient" | "ops")}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+            value={taskMasterId}
+            onChange={(e) => setTaskMasterId(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+            required
           >
-            <option value="ops">Ops</option>
-            <option value="patient">Patient</option>
+            <option value="">Select from task master…</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title} ({t.task_type === "clinical" ? "Clinical" : "Ops"})
+              </option>
+            ))}
           </select>
         </div>
 
-        {taskType === "patient" ? (
+        {isClinical ? (
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Patient</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Patient (active IPD)</label>
             <select
               value={patientId}
               onChange={(e) => setPatientId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               required
             >
               <option value="">Select patient</option>
@@ -182,7 +199,7 @@ export default function NewTaskPage() {
           <select
             value={assigneeId}
             onChange={(e) => setAssigneeId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
             required
           >
             <option value="">Select user</option>
@@ -200,7 +217,7 @@ export default function NewTaskPage() {
             type="datetime-local"
             value={dueLocal}
             onChange={(e) => setDueLocal(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
           />
         </div>
 
@@ -209,7 +226,7 @@ export default function NewTaskPage() {
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value as typeof priority)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
           >
             <option value="critical">Critical</option>
             <option value="high">High</option>
@@ -223,7 +240,7 @@ export default function NewTaskPage() {
           <select
             value={proofType}
             onChange={(e) => setProofType(e.target.value as typeof proofType)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
           >
             <option value="tap">Tap</option>
             <option value="photo">Photo</option>
@@ -237,7 +254,7 @@ export default function NewTaskPage() {
             <select
               value={countersignUserId}
               onChange={(e) => setCountersignUserId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               required
             >
               <option value="">Select user</option>
@@ -255,7 +272,7 @@ export default function NewTaskPage() {
           <select
             value={recurrence}
             onChange={(e) => setRecurrence(e.target.value as (typeof RECURRENCE)[number])}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
           >
             {RECURRENCE.map((r) => (
               <option key={r} value={r}>
@@ -270,7 +287,7 @@ export default function NewTaskPage() {
           <select
             value={psiNodeId}
             onChange={(e) => setPsiNodeId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
           >
             <option value="">None</option>
             {psiNodes.map((n) => (
@@ -285,8 +302,8 @@ export default function NewTaskPage() {
 
         <button
           type="submit"
-          disabled={saving || (taskType === "patient" && !patientId) || !assigneeId || (proofType === "countersign" && !countersignUserId)}
-          className="w-full rounded-lg bg-[#1A3C5E] py-3 text-sm font-semibold text-white disabled:opacity-50"
+          disabled={disableSubmit}
+          className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
         >
           {saving ? "Saving…" : "Create task"}
         </button>

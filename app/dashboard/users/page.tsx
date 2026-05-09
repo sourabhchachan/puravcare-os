@@ -84,7 +84,7 @@ export default function UsersManagementPage() {
         <button
           type="button"
           onClick={() => setAddOpen(true)}
-          className="shrink-0 rounded-lg bg-[#1A3C5E] px-3 py-2 text-xs font-semibold text-white"
+          className="shrink-0 rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white"
         >
           Add User
         </button>
@@ -95,7 +95,7 @@ export default function UsersManagementPage() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search by name or staff ID…"
-        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none ring-[#2563EB] focus:ring-2"
       />
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -109,7 +109,7 @@ export default function UsersManagementPage() {
               key={u.id}
               type="button"
               onClick={() => setEditUser(u)}
-              className="flex w-full flex-col rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#1A3C5E]/40"
+              className="flex w-full flex-col rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#2563EB]/40"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-slate-900">{u.full_name}</span>
@@ -209,14 +209,14 @@ function AddUserSheet({
       <button type="button" aria-label="Close" className="flex-1" onClick={onClose} />
       <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
-        <h2 className="text-lg font-semibold text-[#1A3C5E]">Add user</h2>
+        <h2 className="text-lg font-semibold text-[#2563EB]">Add user</h2>
         <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Full name</label>
             <input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               required
             />
           </div>
@@ -225,7 +225,7 @@ function AddUserSheet({
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as typeof role)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
             >
               <option value="ceo">CEO</option>
               <option value="ops">Ops</option>
@@ -240,7 +240,7 @@ function AddUserSheet({
               maxLength={10}
               value={loginId}
               onChange={(e) => setLoginId(e.target.value.replace(/\D/g, ""))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               required
             />
           </div>
@@ -248,7 +248,7 @@ function AddUserSheet({
           <button
             type="submit"
             disabled={saving || loginId.length !== 10}
-            className="w-full rounded-lg bg-[#1A3C5E] py-3 text-sm font-semibold text-white disabled:opacity-50"
+            className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -275,7 +275,7 @@ function EditUserSheet({
   const [loginId, setLoginId] = useState(user.login_id);
   const [role, setRole] = useState(user.role);
   const [isActive, setIsActive] = useState(user.is_active);
-  const [canCreateTasks, setCanCreateTasks] = useState(Boolean(user.permissions?.can_create_tasks));
+  const [blockTaskCreation, setBlockTaskCreation] = useState(user.permissions?.can_create_tasks === false);
   const [canCreateItems, setCanCreateItems] = useState(Boolean(user.permissions?.can_create_items));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -295,7 +295,7 @@ function EditUserSheet({
         is_active: isActive,
       };
       if (showPermissions) {
-        payload.can_create_tasks = canCreateTasks;
+        payload.can_create_tasks = !blockTaskCreation;
         payload.can_create_items = canCreateItems;
       }
 
@@ -325,7 +325,7 @@ function EditUserSheet({
       <button type="button" aria-label="Close" className="flex-1" onClick={onClose} />
       <div className="mx-auto max-h-[85vh] w-full max-w-[430px] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-lg">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
-        <h2 className="text-lg font-semibold text-[#1A3C5E]">Edit user</h2>
+        <h2 className="text-lg font-semibold text-[#2563EB]">Edit user</h2>
         <p className="mt-1 text-xs text-slate-500">Staff ID: {user.staff_id} (cannot change)</p>
 
         <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
@@ -334,7 +334,7 @@ function EditUserSheet({
             <input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               required
             />
           </div>
@@ -345,7 +345,7 @@ function EditUserSheet({
               maxLength={10}
               value={loginId}
               onChange={(e) => setLoginId(e.target.value.replace(/\D/g, ""))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               required
             />
           </div>
@@ -358,15 +358,15 @@ function EditUserSheet({
                 const prev = role;
                 setRole(r);
                 if ((prev === "ops" || prev === "staff") && r !== "ops" && r !== "staff") {
-                  setCanCreateTasks(false);
+                  setBlockTaskCreation(false);
                   setCanCreateItems(false);
                 }
                 if ((r === "ops" || r === "staff") && prev !== "ops" && prev !== "staff") {
-                  setCanCreateTasks(Boolean(user.permissions?.can_create_tasks));
+                  setBlockTaskCreation(user.permissions?.can_create_tasks === false);
                   setCanCreateItems(Boolean(user.permissions?.can_create_items));
                 }
               }}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
             >
               <option value="ceo">CEO</option>
               <option value="ops">Ops</option>
@@ -379,8 +379,8 @@ function EditUserSheet({
             <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Permissions</p>
               <label className="flex items-center justify-between gap-2 text-sm text-slate-800">
-                <span>Can create tasks</span>
-                <input type="checkbox" checked={canCreateTasks} onChange={(e) => setCanCreateTasks(e.target.checked)} />
+                <span>Block task creation</span>
+                <input type="checkbox" checked={blockTaskCreation} onChange={(e) => setBlockTaskCreation(e.target.checked)} />
               </label>
               <label className="flex items-center justify-between gap-2 text-sm text-slate-800">
                 <span>Can create items</span>
@@ -409,7 +409,7 @@ function EditUserSheet({
           <button
             type="submit"
             disabled={saving || loginId.length !== 10}
-            className="w-full rounded-lg bg-[#1A3C5E] py-3 text-sm font-semibold text-white disabled:opacity-50"
+            className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>

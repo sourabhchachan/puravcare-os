@@ -76,13 +76,13 @@ export default function TasksListPage() {
           {canCreate ? (
             <Link
               href="/dashboard/tasks/new"
-              className="rounded-lg bg-[#1A3C5E] px-3 py-2 text-xs font-semibold text-white shadow-sm"
+              className="rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white shadow-sm"
             >
               New Task
             </Link>
           ) : null}
           {session.role === "ceo" ? (
-            <Link href="/dashboard/tasks/reassign" className="text-xs font-medium text-[#1A3C5E] underline">
+            <Link href="/dashboard/tasks/reassign" className="text-xs font-medium text-[#2563EB] underline">
               Bulk reassign
             </Link>
           ) : null}
@@ -96,7 +96,7 @@ export default function TasksListPage() {
             type="button"
             onClick={() => setFilter(f.id)}
             className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-              filter === f.id ? "bg-[#1A3C5E] text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
+              filter === f.id ? "bg-[#2563EB] text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
             }`}
           >
             {f.label}

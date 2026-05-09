@@ -14,7 +14,7 @@ export type User = {
   };
 };
 
-export type TaskType = "patient" | "ops";
+export type TaskType = "ops" | "clinical" | "patient";
 export type TaskPriority = "critical" | "high" | "normal" | "low";
 export type TaskStatus = "open" | "in_progress" | "done" | "blocked" | "escalated";
 export type ProofType = "tap" | "photo" | "countersign";

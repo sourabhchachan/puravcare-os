@@ -3,21 +3,18 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { useAuth } from "@/lib/hooks/useAuth";
-
-const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly"] as const;
-type PriorityLevel = "critical" | "high" | "normal" | "low";
+import { normalizeTemplateTaskType } from "@/lib/task/taskTypes";
 
 type Template = {
   id: string;
   title: string;
   task_type: string;
-  default_assignee_role: string | null;
-  proof_type: string;
-  recurrence: string;
-  priority: string;
-  is_patient_linked: boolean;
   is_active: boolean;
 };
+
+function typeLabel(t: string) {
+  return normalizeTemplateTaskType(t) === "clinical" ? "Clinical" : "Ops";
+}
 
 export default function TaskMasterPage() {
   const { session, loading: authLoading } = useAuth();
@@ -37,7 +34,7 @@ export default function TaskMasterPage() {
         setError(data.error ?? "Could not load templates");
         return;
       }
-      setTemplates(data.templates ?? []);
+      setTemplates((data.templates ?? []) as Template[]);
     } catch {
       setError("Could not load templates");
     } finally {
@@ -86,7 +83,7 @@ export default function TaskMasterPage() {
         <button
           type="button"
           onClick={() => setSheet("new")}
-          className="shrink-0 rounded-lg bg-[#1A3C5E] px-3 py-2 text-xs font-semibold text-white"
+          className="shrink-0 rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white"
         >
           New Template
         </button>
@@ -105,9 +102,7 @@ export default function TaskMasterPage() {
             >
               <button type="button" className="text-left" onClick={() => setSheet(t)}>
                 <p className="font-semibold text-slate-900">{t.title}</p>
-                <p className="text-xs text-slate-600">
-                  {t.task_type} · {t.recurrence} · {t.priority}
-                </p>
+                <p className="text-xs text-slate-600">{typeLabel(t.task_type)}</p>
               </button>
               <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
                 <span>Active</span>
@@ -150,16 +145,9 @@ function TemplateSheet({
   onSaved: () => void;
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [taskType, setTaskType] = useState<"patient" | "ops">((initial?.task_type as "patient" | "ops") ?? "ops");
-  const [defaultRole, setDefaultRole] = useState<string>(initial?.default_assignee_role ?? "staff");
-  const [proofType, setProofType] = useState<"tap" | "photo" | "countersign">(
-    (initial?.proof_type as "tap" | "photo" | "countersign") ?? "tap",
+  const [taskType, setTaskType] = useState<"ops" | "clinical">(
+    initial ? normalizeTemplateTaskType(initial.task_type) : "ops",
   );
-  const [recurrence, setRecurrence] = useState<(typeof RECURRENCE)[number]>(
-    (initial?.recurrence as (typeof RECURRENCE)[number]) ?? "one-time",
-  );
-  const [priority, setPriority] = useState<PriorityLevel>((initial?.priority as PriorityLevel) ?? "normal");
-  const [patientLinked, setPatientLinked] = useState(initial?.is_patient_linked ?? false);
   const [active, setActive] = useState(initial?.is_active ?? true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -169,17 +157,7 @@ function TemplateSheet({
     setError("");
     setSaving(true);
     try {
-      const body = {
-        title,
-        task_type: taskType,
-        default_assignee_role: defaultRole || null,
-        proof_type: proofType,
-        recurrence,
-        priority,
-        is_patient_linked: patientLinked,
-        is_active: active,
-      };
-
+      const body = { title, task_type: taskType, is_active: active };
       const isNew = !initial;
       const res = isNew
         ? await fetch("/api/task-master", {
@@ -192,7 +170,6 @@ function TemplateSheet({
             headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
             body: JSON.stringify(body),
           });
-
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(data.error ?? "Could not save");
@@ -211,73 +188,38 @@ function TemplateSheet({
       <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
       <div className="mx-auto max-h-[90vh] w-full max-w-[430px] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-lg">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
-        <h2 className="text-lg font-semibold text-[#1A3C5E]">{initial ? "Edit template" : "New template"}</h2>
+        <h2 className="text-lg font-semibold text-[#2563EB]">{initial ? "Edit template" : "New template"}</h2>
         <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Title</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               required
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Task type</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Type</label>
             <select
               value={taskType}
-              onChange={(e) => setTaskType(e.target.value as typeof taskType)}
+              onChange={(e) => setTaskType(e.target.value as "ops" | "clinical")}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="ops">Ops</option>
-              <option value="patient">Patient</option>
+              <option value="clinical">Clinical</option>
             </select>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Default assignee role</label>
-            <select value={defaultRole} onChange={(e) => setDefaultRole(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="ceo">CEO</option>
-              <option value="ops">Ops</option>
-              <option value="staff">Staff</option>
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Proof type</label>
-            <select value={proofType} onChange={(e) => setProofType(e.target.value as typeof proofType)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="tap">Tap</option>
-              <option value="photo">Photo</option>
-              <option value="countersign">Countersign</option>
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Recurrence</label>
-            <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as typeof recurrence)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              {RECURRENCE.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Priority</label>
-            <select value={priority} onChange={(e) => setPriority(e.target.value as PriorityLevel)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="normal">Normal</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
-            <span>Patient linked</span>
-            <input type="checkbox" checked={patientLinked} onChange={(e) => setPatientLinked(e.target.checked)} />
-          </label>
           <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
             <span>Active</span>
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           </label>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <button type="submit" disabled={saving || !title.trim()} className="w-full rounded-lg bg-[#1A3C5E] py-3 text-sm font-semibold text-white disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={saving || !title.trim()}
+            className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
             {saving ? "Saving…" : "Save"}
           </button>
         </form>

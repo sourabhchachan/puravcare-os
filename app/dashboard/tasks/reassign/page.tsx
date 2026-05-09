@@ -92,7 +92,7 @@ export default function BulkReassignPage() {
       <div className="rounded-xl border border-red-200 bg-white p-4 text-sm text-red-700 shadow-sm">
         Access denied — CEO only.
         <div className="mt-3">
-          <Link href="/dashboard/tasks" className="font-medium text-[#1A3C5E] underline">
+          <Link href="/dashboard/tasks" className="font-medium text-[#2563EB] underline">
             Back to tasks
           </Link>
         </div>
@@ -154,7 +154,7 @@ export default function BulkReassignPage() {
     <div className="space-y-4 pb-8">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold text-slate-900">Bulk reassign</h1>
-        <Link href="/dashboard/tasks" className="text-xs font-medium text-[#1A3C5E] underline">
+        <Link href="/dashboard/tasks" className="text-xs font-medium text-[#2563EB] underline">
           Back
         </Link>
       </div>
@@ -167,7 +167,7 @@ export default function BulkReassignPage() {
           <select
             value={assigneeId}
             onChange={(e) => setAssigneeId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
           >
             <option value="">Select user</option>
             {users.map((u) => (
@@ -251,7 +251,7 @@ export default function BulkReassignPage() {
                 type="button"
                 disabled={saving || selectedIds.length === 0 || !newAssignee || !reason.trim()}
                 onClick={() => void handleBulk()}
-                className="w-full rounded-lg bg-[#1A3C5E] py-3 text-sm font-semibold text-white disabled:opacity-50"
+                className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {saving ? "Saving…" : "Reassign selected"}
               </button>

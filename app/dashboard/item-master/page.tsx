@@ -117,7 +117,7 @@ export default function ItemMasterPage() {
         <button
           type="button"
           onClick={() => setSheet("new")}
-          className="shrink-0 rounded-lg bg-[#1A3C5E] px-3 py-2 text-xs font-semibold text-white"
+          className="shrink-0 rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white"
         >
           New Item
         </button>
@@ -128,7 +128,7 @@ export default function ItemMasterPage() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search by name…"
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
       />
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -253,14 +253,14 @@ function ItemSheet({
       <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
       <div className="mx-auto max-h-[90vh] w-full max-w-[430px] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-lg">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
-        <h2 className="text-lg font-semibold text-[#1A3C5E]">{initial ? "Edit item" : "New item"}</h2>
+        <h2 className="text-lg font-semibold text-[#2563EB]">{initial ? "Edit item" : "New item"}</h2>
         <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Name</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               required
             />
           </div>
@@ -273,7 +273,7 @@ function ItemSheet({
               step="0.01"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               required
             />
           </div>
@@ -304,7 +304,7 @@ function ItemSheet({
           <button
             type="submit"
             disabled={saving || !name.trim()}
-            className="w-full rounded-lg bg-[#1A3C5E] py-3 text-sm font-semibold text-white disabled:opacity-50"
+            className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>

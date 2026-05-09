@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       role: user.role as "ceo" | "ops" | "staff" | "vendor",
       login_id: user.login_id as string,
       must_change_password: Boolean(user.must_change_password),
-      can_create_tasks: Boolean(perm?.can_create_tasks),
+      can_create_tasks: perm ? perm.can_create_tasks !== false : true,
       can_create_items: Boolean(perm?.can_create_items),
     };
 

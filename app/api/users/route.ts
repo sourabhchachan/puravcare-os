@@ -135,7 +135,7 @@ export async function POST(request: Request) {
 
     const { error: permError } = await supabase.from("permissions").insert({
       user_id: inserted.id as string,
-      can_create_tasks: false,
+      can_create_tasks: true,
       can_create_items: false,
     });
 
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       user: {
         ...inserted,
-        permissions: { can_create_tasks: false, can_create_items: false },
+        permissions: { can_create_tasks: true, can_create_items: false },
       },
     });
   } catch {

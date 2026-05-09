@@ -60,16 +60,16 @@ export default function ChangePasswordPage() {
 
   if (loading || !session) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] text-sm text-slate-500">
+      <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] text-sm text-slate-500">
         Loading…
       </div>
     );
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 py-8">
+    <main className="flex min-h-screen items-center justify-center bg-[#F9FAFB] px-4 py-8">
       <div className="w-full max-w-[430px] rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-bold text-[#1A3C5E]">Change password</h1>
+        <h1 className="text-xl font-bold text-[#2563EB]">Change password</h1>
         <p className="mt-1 text-sm text-slate-600">Choose a new 6-digit password (not 000000).</p>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -84,7 +84,7 @@ export default function ChangePasswordPage() {
               maxLength={6}
               value={nextPassword}
               onChange={(e) => setNextPassword(e.target.value.replace(/\D/g, ""))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none ring-[#2563EB] focus:ring-2"
               placeholder="6 digits"
               required
             />
@@ -100,7 +100,7 @@ export default function ChangePasswordPage() {
               maxLength={6}
               value={confirm}
               onChange={(e) => setConfirm(e.target.value.replace(/\D/g, ""))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none ring-[#1A3C5E] focus:ring-2"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none ring-[#2563EB] focus:ring-2"
               placeholder="6 digits"
               required
             />
@@ -109,7 +109,7 @@ export default function ChangePasswordPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-[#1A3C5E] py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? "Saving…" : "Save & continue"}
           </button>

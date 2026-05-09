@@ -53,22 +53,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading || !session) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] text-sm text-slate-500">
+      <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] text-sm text-slate-500">
         Loading…
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
-      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[#F8FAFC] shadow-sm">
-        <header className="flex shrink-0 items-center justify-between bg-gradient-to-r from-[#1A3C5E] to-[#2D5F8A] px-4 py-3 text-white">
+    <div className="min-h-screen bg-[#F9FAFB]">
+      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[#F9FAFB] shadow-sm">
+        <header className="flex shrink-0 items-center justify-between bg-gradient-to-r from-[#2563EB] to-[#3B82F6] px-4 py-3 text-white">
           <span className="text-base font-semibold">PuravCare OS</span>
           <button
             type="button"
             aria-label="Profile"
             onClick={() => setProfileOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1A3C5E] text-sm font-semibold text-white ring-2 ring-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2563EB] text-sm font-semibold text-white ring-2 ring-white"
           >
             {initials(session.full_name)}
           </button>
@@ -87,10 +87,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 key={tab.href}
                 href={tab.href}
                 className={`flex flex-col items-center gap-1 py-2 text-[11px] font-medium ${
-                  active ? "text-[#1A3C5E]" : "text-slate-500"
+                  active ? "text-[#2563EB]" : "text-slate-500"
                 }`}
               >
-                <Icon className={`h-5 w-5 ${active ? "text-[#1A3C5E]" : "text-slate-400"}`} />
+                <Icon className={`h-5 w-5 ${active ? "text-[#2563EB]" : "text-slate-400"}`} />
                 {tab.label}
               </Link>
             );
@@ -121,7 +121,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <li key={item.href}>
                       <Link
                         href={item.href}
-                        className="block rounded-lg px-3 py-2 text-sm text-[#1A3C5E] hover:bg-slate-50"
+                        className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
                         onClick={() => setProfileOpen(false)}
                       >
                         {item.label}
@@ -139,7 +139,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <li>
                     <Link
                       href="/dashboard/item-master"
-                      className="block rounded-lg px-3 py-2 text-sm text-[#1A3C5E] hover:bg-slate-50"
+                      className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
                       onClick={() => setProfileOpen(false)}
                     >
                       Item Master

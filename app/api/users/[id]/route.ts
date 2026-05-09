@@ -108,8 +108,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         .limit(1)
         .maybeSingle();
 
-      const nextTasks = typeof body.can_create_tasks === "boolean" ? body.can_create_tasks : Boolean(prow?.can_create_tasks);
-      const nextItems = typeof body.can_create_items === "boolean" ? body.can_create_items : Boolean(prow?.can_create_items);
+      const nextTasks =
+        typeof body.can_create_tasks === "boolean"
+          ? body.can_create_tasks
+          : prow
+            ? Boolean(prow.can_create_tasks)
+            : true;
+      const nextItems =
+        typeof body.can_create_items === "boolean"
+          ? body.can_create_items
+          : prow
+            ? Boolean(prow.can_create_items)
+            : false;
 
       if (prow?.id) {
         const { error: pErr } = await supabase

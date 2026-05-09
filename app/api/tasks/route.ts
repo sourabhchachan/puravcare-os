@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, canCreateTasks, getActorId, getUserRole } from "@/lib/api/actor";
 import { createServiceClient } from "@/lib/supabase/service";
+import { taskTypeForInsertFromTemplate } from "@/lib/task/taskTypes";
 
 const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly"] as const;
 
@@ -14,6 +15,10 @@ function attachAssigneeNames(
     ...t,
     assignee_name: map[t.assignee_id as string] ?? "—",
   }));
+}
+
+function resolveActorId(request: Request, bodyActor?: string): string | null {
+  return getActorId(request) ?? bodyActor?.trim() ?? null;
 }
 
 export async function GET(request: Request) {
@@ -77,8 +82,7 @@ export async function GET(request: Request) {
 
 type PostBody = {
   actor_id?: string;
-  title?: string;
-  task_type?: string;
+  task_master_id?: string;
   assignee_id?: string;
   due_at?: string | null;
   priority?: string;
@@ -97,7 +101,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  const actorId = body.actor_id?.trim();
+  const actorId = resolveActorId(request, body.actor_id);
   if (!actorId || !(await assertActiveUser(actorId))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -105,13 +109,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const title = (body.title ?? "").trim();
-  if (!title) return NextResponse.json({ error: "missing_title" }, { status: 400 });
-
-  const taskType = body.task_type;
-  if (!taskType || !["patient", "ops"].includes(taskType)) {
-    return NextResponse.json({ error: "invalid_type" }, { status: 400 });
-  }
+  const taskMasterId = (body.task_master_id ?? "").trim();
+  if (!taskMasterId) return NextResponse.json({ error: "missing_task_master" }, { status: 400 });
 
   if (!body.assignee_id) return NextResponse.json({ error: "missing_assignee" }, { status: 400 });
 
@@ -134,11 +133,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "missing_countersigner" }, { status: 400 });
   }
 
-  if (taskType === "patient" && !body.patient_id) {
-    return NextResponse.json({ error: "missing_patient" }, { status: 400 });
+  const supabase = createServiceClient();
+
+  const { data: master, error: mErr } = await supabase
+    .from("task_master")
+    .select("id, title, task_type, is_active")
+    .eq("id", taskMasterId)
+    .maybeSingle();
+
+  if (mErr || !master || !master.is_active) {
+    return NextResponse.json({ error: "invalid_task_master" }, { status: 400 });
   }
 
-  const supabase = createServiceClient();
+  const taskType = taskTypeForInsertFromTemplate(master.task_type as string);
+  if (taskType === "clinical" && !body.patient_id) {
+    return NextResponse.json({ error: "missing_patient" }, { status: 400 });
+  }
 
   const { data: assignee } = await supabase
     .from("users")
@@ -163,14 +173,15 @@ export async function POST(request: Request) {
     if (!pat) return NextResponse.json({ error: "invalid_patient" }, { status: 400 });
   }
 
+  const title = (master.title as string).trim();
   const insertRow = {
     title,
     task_type: taskType,
     assignee_id: body.assignee_id,
     created_by: actorId,
-    patient_id: taskType === "patient" ? body.patient_id : null,
+    patient_id: taskType === "clinical" ? body.patient_id : null,
     psi_node_id: body.psi_node_id ?? null,
-    task_master_id: null as string | null,
+    task_master_id: taskMasterId,
     due_at: body.due_at || null,
     priority,
     proof_type: proofType,
