@@ -39,6 +39,9 @@ const ceoLinks = [
   { href: "/dashboard/users", label: "User Management" },
   { href: "/dashboard/task-master", label: "Task Master" },
   { href: "/dashboard/item-master", label: "Item Master" },
+  { href: "/dashboard/categories", label: "Categories" },
+  { href: "/dashboard/payment-methods", label: "Payment Methods" },
+  { href: "/dashboard/customers", label: "Customers" },
   { href: "/dashboard/audit-log", label: "Audit Log" },
 ] as const;
 
@@ -181,6 +184,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <ChevronRight className="h-4 w-4 text-gray-400" />
                   </Link>
                 </li>
+                {session.role === "ops" ? (
+                  <li>
+                    <Link
+                      href="/dashboard/customers"
+                      className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-slate-50"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      Customers
+                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                    </Link>
+                  </li>
+                ) : null}
               </ul>
             </div>
 

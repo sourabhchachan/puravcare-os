@@ -10,6 +10,9 @@ type PatchBody = {
   amount?: number;
   description?: string | null;
   entry_date?: string;
+  category_id?: string;
+  payment_method_id?: string;
+  customer_id?: string;
 };
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string; entryId: string }> }) {
@@ -69,6 +72,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     updates.amount = n;
   }
   if (typeof body.description === "string") updates.description = body.description.trim() || null;
+
+  if (body.category_id !== undefined) {
+    const cid = String(body.category_id).trim();
+    if (!cid) return NextResponse.json({ error: "invalid_category" }, { status: 400 });
+    const { data: row } = await supabase.from("cashbook_categories").select("id").eq("id", cid).eq("is_active", true).maybeSingle();
+    if (!row) return NextResponse.json({ error: "invalid_category" }, { status: 400 });
+    updates.category_id = cid;
+  }
+  if (body.payment_method_id !== undefined) {
+    const pid = String(body.payment_method_id).trim();
+    if (!pid) return NextResponse.json({ error: "invalid_payment_method" }, { status: 400 });
+    const { data: row } = await supabase.from("payment_methods").select("id").eq("id", pid).eq("is_active", true).maybeSingle();
+    if (!row) return NextResponse.json({ error: "invalid_payment_method" }, { status: 400 });
+    updates.payment_method_id = pid;
+  }
+  if (body.customer_id !== undefined) {
+    const cuid = String(body.customer_id).trim();
+    if (!cuid) return NextResponse.json({ error: "invalid_customer" }, { status: 400 });
+    const { data: row } = await supabase.from("customers").select("id").eq("id", cuid).eq("is_active", true).maybeSingle();
+    if (!row) return NextResponse.json({ error: "invalid_customer" }, { status: 400 });
+    updates.customer_id = cuid;
+  }
+
   if (typeof body.entry_date === "string" && body.entry_date.trim()) {
     const canBackdate = isCeo ? "always" : (myMember?.can_backdate as string) ?? "never";
     const entryDate = parseEntryDate(body.entry_date);

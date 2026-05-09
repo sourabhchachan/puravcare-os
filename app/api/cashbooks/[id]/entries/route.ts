@@ -10,6 +10,9 @@ type PostBody = {
   amount?: number;
   description?: string | null;
   entry_date?: string;
+  category_id?: string;
+  payment_method_id?: string;
+  customer_id?: string;
 };
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -60,6 +63,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "invalid_entry_date" }, { status: 400 });
   }
 
+  const categoryId = (body.category_id ?? "").trim();
+  const paymentMethodId = (body.payment_method_id ?? "").trim();
+  const customerId = (body.customer_id ?? "").trim();
+  if (!categoryId || !paymentMethodId || !customerId) {
+    return NextResponse.json({ error: "missing_classification" }, { status: 400 });
+  }
+
+  const [{ data: cat }, { data: pm }, { data: cust }] = await Promise.all([
+    supabase.from("cashbook_categories").select("id").eq("id", categoryId).eq("is_active", true).maybeSingle(),
+    supabase.from("payment_methods").select("id").eq("id", paymentMethodId).eq("is_active", true).maybeSingle(),
+    supabase.from("customers").select("id").eq("id", customerId).eq("is_active", true).maybeSingle(),
+  ]);
+  if (!cat || !pm || !cust) {
+    return NextResponse.json({ error: "invalid_classification" }, { status: 400 });
+  }
+
   const { data: row, error } = await supabase
     .from("cash_entries")
     .insert({
@@ -69,6 +88,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       description: (body.description ?? "").trim() || null,
       entry_date: entryDate.toISOString(),
       created_by: actorId!,
+      category_id: categoryId,
+      payment_method_id: paymentMethodId,
+      customer_id: customerId,
     })
     .select("*")
     .single();

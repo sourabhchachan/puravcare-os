@@ -11,6 +11,9 @@ DROP TABLE IF EXISTS public.notifications CASCADE;
 DROP TABLE IF EXISTS public.indents CASCADE;
 DROP TABLE IF EXISTS public.billable_items CASCADE;
 DROP TABLE IF EXISTS public.cash_entries CASCADE;
+DROP TABLE IF EXISTS public.customers CASCADE;
+DROP TABLE IF EXISTS public.payment_methods CASCADE;
+DROP TABLE IF EXISTS public.cashbook_categories CASCADE;
 DROP TABLE IF EXISTS public.cashbook_fields CASCADE;
 DROP TABLE IF EXISTS public.cashbook_members CASCADE;
 DROP TABLE IF EXISTS public.cashbooks CASCADE;
@@ -350,6 +353,48 @@ CREATE TABLE public.cashbook_fields (
 );
 
 -- --------------------------------------------------------------------------
+-- 4.14b cashbook_categories (master)
+-- --------------------------------------------------------------------------
+CREATE TABLE public.cashbook_categories (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES public.users (id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT cashbook_categories_name_unique UNIQUE (name)
+);
+
+CREATE UNIQUE INDEX cashbook_categories_name_ci ON public.cashbook_categories (lower(name));
+
+-- --------------------------------------------------------------------------
+-- 4.14c payment_methods (master)
+-- --------------------------------------------------------------------------
+CREATE TABLE public.payment_methods (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES public.users (id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT payment_methods_name_unique UNIQUE (name)
+);
+
+CREATE UNIQUE INDEX payment_methods_name_ci ON public.payment_methods (lower(name));
+
+-- --------------------------------------------------------------------------
+-- 4.14d customers (master)
+-- --------------------------------------------------------------------------
+CREATE TABLE public.customers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES public.users (id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT customers_name_unique UNIQUE (name)
+);
+
+CREATE UNIQUE INDEX customers_name_ci ON public.customers (lower(name));
+
+-- --------------------------------------------------------------------------
 -- 4.15 cash_entries
 -- --------------------------------------------------------------------------
 CREATE TABLE public.cash_entries (
@@ -360,6 +405,9 @@ CREATE TABLE public.cash_entries (
   description text,
   entry_date timestamptz NOT NULL DEFAULT now(),
   created_by uuid NOT NULL REFERENCES public.users (id),
+  category_id uuid REFERENCES public.cashbook_categories (id),
+  payment_method_id uuid REFERENCES public.payment_methods (id),
+  customer_id uuid REFERENCES public.customers (id),
   custom_fields jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -498,6 +546,9 @@ ALTER TABLE public.task_chain_steps ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cashbooks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cashbook_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cashbook_fields ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cashbook_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payment_methods ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.billable_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.indents ENABLE ROW LEVEL SECURITY;
@@ -603,6 +654,27 @@ CREATE POLICY "Allow all for authenticated users"
   WITH CHECK (true);
 
 CREATE POLICY "Allow all for authenticated users"
+  ON public.cashbook_categories
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Allow all for authenticated users"
+  ON public.payment_methods
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Allow all for authenticated users"
+  ON public.customers
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Allow all for authenticated users"
   ON public.cash_entries
   FOR ALL
   TO authenticated
@@ -669,6 +741,53 @@ ADD COLUMN IF NOT EXISTS task_master_id uuid REFERENCES public.task_master (id);
 
 ALTER TABLE public.task_chain_steps
 ADD COLUMN IF NOT EXISTS default_assignee_role text;
+
+-- Cashbook master lists + entry dimensions (run on existing DBs; safe to re-run)
+CREATE TABLE IF NOT EXISTS public.cashbook_categories (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES public.users (id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT cashbook_categories_name_unique UNIQUE (name)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS cashbook_categories_name_ci ON public.cashbook_categories (lower(name));
+ALTER TABLE public.cashbook_categories ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.cashbook_categories;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.cashbook_categories FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS public.payment_methods (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES public.users (id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT payment_methods_name_unique UNIQUE (name)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS payment_methods_name_ci ON public.payment_methods (lower(name));
+ALTER TABLE public.payment_methods ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.payment_methods;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.payment_methods FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS public.customers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES public.users (id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT customers_name_unique UNIQUE (name)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS customers_name_ci ON public.customers (lower(name));
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.customers;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.customers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES public.cashbook_categories (id);
+ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS payment_method_id uuid REFERENCES public.payment_methods (id);
+ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS customer_id uuid REFERENCES public.customers (id);
 
 -- Note: existing databases must widen CHECK constraints manually if upgrades fail, e.g. tasks.status and task_events.event_type.
 

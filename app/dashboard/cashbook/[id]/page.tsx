@@ -16,6 +16,12 @@ type EntryRow = {
   entry_date: string;
   created_by: string;
   created_by_name: string;
+  category_id?: string | null;
+  payment_method_id?: string | null;
+  customer_id?: string | null;
+  category_name?: string | null;
+  payment_method_name?: string | null;
+  customer_name?: string | null;
 };
 
 type MemberRow = { user_id: string; full_name: string; role: string };
@@ -45,7 +51,7 @@ function balanceClass(n: number) {
 
 function formatEntryDate(iso: string) {
   try {
-    return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+    return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
   } catch {
     return iso;
   }
@@ -209,21 +215,28 @@ export default function CashbookDetailPage() {
             return (
               <li key={e.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
                 <div className="flex justify-between gap-2">
-                  <span className="text-slate-600">{formatEntryDate(e.entry_date)}</span>
+                  <span className="text-xs font-medium text-slate-500">{formatEntryDate(e.entry_date)}</span>
                   {canEdit ? (
                     <button type="button" className="text-xs font-medium text-[#2563EB]" onClick={() => setEditEntry(e)}>
                       Edit
                     </button>
                   ) : null}
                 </div>
-                <p className="mt-1 font-medium text-slate-900">{e.description || "—"}</p>
-                <div className="mt-2 flex justify-between text-xs text-slate-600">
+                <p className="mt-2 text-xs leading-relaxed text-slate-700">
+                  <span>{e.category_name ?? "—"}</span>
+                  <span className="text-slate-300"> | </span>
+                  <span>{e.payment_method_name ?? "—"}</span>
+                  <span className="text-slate-300"> | </span>
+                  <span>{e.customer_name ?? "—"}</span>
+                </p>
+                <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
                   <span>
-                    {e.entry_type === "in" ? <span className="font-semibold text-emerald-600">IN {formatInr(Number(e.amount))}</span> : null}
-                    {e.entry_type === "out" ? <span className="font-semibold text-red-600">OUT {formatInr(Number(e.amount))}</span> : null}
+                    {e.entry_type === "in" ? <span className="font-semibold text-emerald-600">{formatInr(Number(e.amount))} IN</span> : null}
+                    {e.entry_type === "out" ? <span className="font-semibold text-red-600">{formatInr(Number(e.amount))} OUT</span> : null}
                   </span>
-                  <span>{e.created_by_name}</span>
+                  <span className="text-xs text-slate-500">{e.created_by_name}</span>
                 </div>
+                {e.description ? <p className="mt-1 text-xs text-slate-500">{e.description}</p> : null}
               </li>
             );
           })}
@@ -235,6 +248,7 @@ export default function CashbookDetailPage() {
         <EntrySheet
           mode="add"
           sessionId={session.id}
+          sessionRole={session.role}
           cashbookId={id}
           canBackdate={data.can_backdate}
           onClose={() => setAddOpen(false)}
@@ -250,6 +264,7 @@ export default function CashbookDetailPage() {
         <EntrySheet
           mode="edit"
           sessionId={session.id}
+          sessionRole={session.role}
           cashbookId={id}
           canBackdate={data.can_backdate}
           initial={editEntry}
@@ -294,9 +309,22 @@ export default function CashbookDetailPage() {
   );
 }
 
+type MasterOpt = { id: string; name: string };
+
+function mergeMasterOptions(active: MasterOpt[], selectedId: string | null | undefined, selectedName: string | null | undefined): MasterOpt[] {
+  if (!selectedId) return active;
+  if (active.some((o) => o.id === selectedId)) return active;
+  return sortMasterOpts([...active, { id: selectedId, name: selectedName?.trim() ? selectedName : "(inactive)" }]);
+}
+
+function sortMasterOpts(opts: MasterOpt[]) {
+  return [...opts].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+}
+
 function EntrySheet({
   mode,
   sessionId,
+  sessionRole,
   cashbookId,
   canBackdate,
   initial,
@@ -305,6 +333,7 @@ function EntrySheet({
 }: {
   mode: "add" | "edit";
   sessionId: string;
+  sessionRole: string;
   cashbookId: string;
   canBackdate: string;
   initial?: EntryRow;
@@ -312,6 +341,7 @@ function EntrySheet({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const canQuickCustomer = sessionRole === "ceo" || sessionRole === "ops";
   const [entryType, setEntryType] = useState<"in" | "out">((initial?.entry_type as "in" | "out") ?? "in");
   const [amount, setAmount] = useState(initial != null ? String(initial.amount) : "");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -319,12 +349,62 @@ function EntrySheet({
     if (initial?.entry_date) return ymd(new Date(initial.entry_date));
     return ymd(new Date());
   });
+  const [categoryId, setCategoryId] = useState(initial?.category_id ?? "");
+  const [paymentMethodId, setPaymentMethodId] = useState(initial?.payment_method_id ?? "");
+  const [customerId, setCustomerId] = useState(initial?.customer_id ?? "");
+  const [categories, setCategories] = useState<MasterOpt[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<MasterOpt[]>([]);
+  const [customers, setCustomers] = useState<MasterOpt[]>([]);
+  const [mastersLoading, setMastersLoading] = useState(true);
+  const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const loadMasters = useCallback(async () => {
+    setMastersLoading(true);
+    try {
+      const h = { "x-actor-id": sessionId };
+      const [cRes, pRes, uRes] = await Promise.all([
+        fetch("/api/cashbook-categories?active_only=1", { headers: h }),
+        fetch("/api/payment-methods?active_only=1", { headers: h }),
+        fetch("/api/customers?active_only=1", { headers: h }),
+      ]);
+      const [cJson, pJson, uJson] = await Promise.all([cRes.json(), pRes.json(), uRes.json()]);
+      if (cRes.ok) {
+        const list = (cJson as { categories?: { id: string; name: string }[] }).categories ?? [];
+        setCategories(sortMasterOpts(list.map((x) => ({ id: x.id, name: x.name }))));
+      }
+      if (pRes.ok) {
+        const list = (pJson as { payment_methods?: { id: string; name: string }[] }).payment_methods ?? [];
+        setPaymentMethods(sortMasterOpts(list.map((x) => ({ id: x.id, name: x.name }))));
+      }
+      if (uRes.ok) {
+        const list = (uJson as { customers?: { id: string; name: string }[] }).customers ?? [];
+        setCustomers(sortMasterOpts(list.map((x) => ({ id: x.id, name: x.name }))));
+      }
+    } catch {
+      toast.error("Could not load lists");
+    } finally {
+      setMastersLoading(false);
+    }
+  }, [sessionId, toast]);
+
+  useEffect(() => {
+    void loadMasters();
+  }, [loadMasters]);
+
+  const categoryOptions = mergeMasterOptions(categories, initial?.category_id, initial?.category_name);
+  const paymentMethodOptions = mergeMasterOptions(paymentMethods, initial?.payment_method_id, initial?.payment_method_name);
+  const customerOptions = mergeMasterOptions(customers, initial?.customer_id, initial?.customer_name);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (!categoryId || !paymentMethodId || !customerId) {
+      setError("Select category, payment method, and customer.");
+      toast.error("Select category, payment method, and customer.");
+      return;
+    }
     setSaving(true);
     try {
       const n = Number(amount);
@@ -334,6 +414,7 @@ function EntrySheet({
         setSaving(false);
         return;
       }
+      const desc = description.trim() || null;
       if (mode === "add") {
         const res = await fetch(`/api/cashbooks/${cashbookId}/entries`, {
           method: "POST",
@@ -341,8 +422,11 @@ function EntrySheet({
           body: JSON.stringify({
             entry_type: entryType,
             amount: n,
-            description,
+            description: desc,
             entry_date: entryDate,
+            category_id: categoryId,
+            payment_method_id: paymentMethodId,
+            customer_id: customerId,
           }),
         });
         const body = (await res.json()) as { error?: string };
@@ -358,8 +442,11 @@ function EntrySheet({
           body: JSON.stringify({
             entry_type: entryType,
             amount: n,
-            description,
+            description: desc,
             entry_date: entryDate,
+            category_id: categoryId,
+            payment_method_id: paymentMethodId,
+            customer_id: customerId,
           }),
         });
         const body = (await res.json()) as { error?: string };
@@ -385,6 +472,10 @@ function EntrySheet({
         ? "Today or yesterday (UTC calendar)."
         : "Any past date up to today.";
 
+  const mastersReady = !mastersLoading;
+  const refsOk = Boolean(categoryId && paymentMethodId && customerId);
+  const disableSave = saving || !mastersReady || !refsOk;
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
       <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
@@ -393,6 +484,69 @@ function EntrySheet({
         <h2 className="text-lg font-semibold text-[#2563EB]">{mode === "add" ? "Add entry" : "Edit entry"}</h2>
         <p className="mt-1 text-xs text-slate-500">{dateHint}</p>
         <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Category</label>
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              required
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              disabled={mastersLoading}
+            >
+              <option value="">Select category</option>
+              {categoryOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Payment method</label>
+            <select
+              value={paymentMethodId}
+              onChange={(e) => setPaymentMethodId(e.target.value)}
+              required
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              disabled={mastersLoading}
+            >
+              <option value="">Select payment method</option>
+              {paymentMethodOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Customer</label>
+            <div className="flex gap-2">
+              <select
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                required
+                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+                disabled={mastersLoading}
+              >
+                <option value="">Select customer</option>
+                {customerOptions.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+              {canQuickCustomer ? (
+                <button
+                  type="button"
+                  onClick={() => setQuickCustomerOpen(true)}
+                  className="shrink-0 rounded-lg border border-[#2563EB] px-3 py-2 text-sm font-semibold text-[#2563EB]"
+                  aria-label="New customer"
+                >
+                  +
+                </button>
+              ) : null}
+            </div>
+          </div>
           <div className="flex gap-2">
             <button
               type="button"
@@ -422,11 +576,12 @@ function EntrySheet({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Description</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Description (optional)</label>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              placeholder="Notes"
             />
           </div>
           <div>
@@ -440,9 +595,90 @@ function EntrySheet({
             />
           </div>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <button type="submit" disabled={saving} className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50">
-            {saving ? "Saving…" : "Save"}
+          <button type="submit" disabled={disableSave} className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50">
+            {saving ? "Saving…" : mastersLoading ? "Loading…" : "Save"}
           </button>
+        </form>
+      </div>
+
+      {quickCustomerOpen ? (
+        <CustomerQuickSheet
+          sessionId={sessionId}
+          onClose={() => setQuickCustomerOpen(false)}
+          onCreated={(id) => {
+            setQuickCustomerOpen(false);
+            void loadMasters().then(() => setCustomerId(id));
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function CustomerQuickSheet({
+  sessionId,
+  onClose,
+  onCreated,
+}: {
+  sessionId: string;
+  onClose: () => void;
+  onCreated: (id: string) => void;
+}) {
+  const toast = useToast();
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setErr("");
+    setSaving(true);
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      const data = (await res.json()) as { customer?: { id: string }; error?: string };
+      if (!res.ok) {
+        setErr(data.error === "duplicate_name" ? "Name already exists" : data.error ?? "Failed");
+        toast.error(data.error === "duplicate_name" ? "Name already exists" : "Failed");
+        return;
+      }
+      if (data.customer?.id) {
+        toast.success("Customer added");
+        onCreated(data.customer.id);
+      }
+    } catch {
+      setErr("Failed");
+      toast.error("Failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/50">
+      <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
+      <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+        <h3 className="text-base font-semibold text-[#2563EB]">New customer</h3>
+        <form className="mt-3 space-y-3" onSubmit={submit}>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            placeholder="Customer name"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          {err ? <p className="text-sm text-red-600">{err}</p> : null}
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm font-semibold text-slate-700">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving || !name.trim()} className="flex-1 rounded-lg bg-[#2563EB] py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

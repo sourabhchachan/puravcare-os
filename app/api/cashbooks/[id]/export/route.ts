@@ -49,7 +49,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   let q = supabase
     .from("cash_entries")
-    .select("id, entry_type, amount, description, entry_date, created_by, created_at")
+    .select(
+      "id, entry_type, amount, description, entry_date, created_by, created_at, category_id, payment_method_id, customer_id",
+    )
     .eq("cashbook_id", cashbookId)
     .gte("entry_date", new Date(startMs).toISOString())
     .lte("entry_date", new Date(endMs).toISOString())
@@ -70,6 +72,26 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     nameMap = Object.fromEntries((users ?? []).map((u) => [u.id as string, u.full_name as string]));
   }
 
+  const catIds = [...new Set((entryRows ?? []).map((e) => e.category_id as string | null).filter(Boolean))] as string[];
+  const pmIds = [...new Set((entryRows ?? []).map((e) => e.payment_method_id as string | null).filter(Boolean))] as string[];
+  const custIds = [...new Set((entryRows ?? []).map((e) => e.customer_id as string | null).filter(Boolean))] as string[];
+
+  let catMap: Record<string, string> = {};
+  let pmMap: Record<string, string> = {};
+  let custMap: Record<string, string> = {};
+  if (catIds.length) {
+    const { data: cats } = await supabase.from("cashbook_categories").select("id, name").in("id", catIds);
+    catMap = Object.fromEntries((cats ?? []).map((c) => [c.id as string, c.name as string]));
+  }
+  if (pmIds.length) {
+    const { data: pms } = await supabase.from("payment_methods").select("id, name").in("id", pmIds);
+    pmMap = Object.fromEntries((pms ?? []).map((p) => [p.id as string, p.name as string]));
+  }
+  if (custIds.length) {
+    const { data: custs } = await supabase.from("customers").select("id, name").in("id", custIds);
+    custMap = Object.fromEntries((custs ?? []).map((c) => [c.id as string, c.name as string]));
+  }
+
   let running = 0;
   const rows = (entryRows ?? []).map((e) => {
     const amt = Number(e.amount);
@@ -81,6 +103,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         dateStyle: "medium",
         timeStyle: "short",
       }),
+      Category: e.category_id ? (catMap[e.category_id as string] ?? "—") : "—",
+      "Payment Method": e.payment_method_id ? (pmMap[e.payment_method_id as string] ?? "—") : "—",
+      Customer: e.customer_id ? (custMap[e.customer_id as string] ?? "—") : "—",
       Description: (e.description as string) ?? "",
       IN: inn || "",
       OUT: out || "",
