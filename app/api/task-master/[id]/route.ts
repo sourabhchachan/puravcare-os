@@ -8,6 +8,7 @@ type PatchBody = {
   title?: string;
   task_type?: string;
   is_active?: boolean;
+  psi_node_id?: string | null;
 };
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -31,6 +32,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     updates.task_type = body.task_type;
   }
   if (typeof body.is_active === "boolean") updates.is_active = body.is_active;
+  if (body.psi_node_id !== undefined) {
+    const psiNodeId = body.psi_node_id?.trim() || null;
+    if (psiNodeId) {
+      const supabase = createServiceClient();
+      const { data: psi } = await supabase
+        .from("psi_nodes")
+        .select("id")
+        .eq("id", psiNodeId)
+        .eq("status", "approved")
+        .eq("type", "problem")
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!psi) return NextResponse.json({ error: "invalid_psi_node" }, { status: 400 });
+    }
+    updates.psi_node_id = psiNodeId;
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "no_updates" }, { status: 400 });

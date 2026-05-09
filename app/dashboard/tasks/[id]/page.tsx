@@ -60,7 +60,7 @@ export default function TaskDetailPage() {
   const [creatorName, setCreatorName] = useState("");
   const [countersignName, setCountersignName] = useState<string | null>(null);
   const [patient, setPatient] = useState<{ full_name: string; uhid: string } | null>(null);
-  const [psi, setPsi] = useState<{ title: string; type: string } | null>(null);
+  const [psi, setPsi] = useState<{ title: string } | null>(null);
   const [users, setUsers] = useState<{ id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -86,7 +86,7 @@ export default function TaskDetailPage() {
         creator_name?: string;
         countersign_name?: string | null;
         patient?: { full_name: string; uhid: string } | null;
-        psi?: { title: string; type: string } | null;
+        psi?: { title: string } | null;
         error?: string;
       };
       if (!res.ok) {
@@ -250,9 +250,7 @@ export default function TaskDetailPage() {
           {psi ? (
             <div className="flex justify-between gap-2">
               <dt className="text-slate-500">PSI</dt>
-              <dd className="font-medium">
-                {psi.title} ({psi.type})
-              </dd>
+              <dd className="font-medium">{psi.title}</dd>
             </div>
           ) : null}
           {task.reassign_reason ? (

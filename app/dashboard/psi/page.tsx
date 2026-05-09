@@ -18,6 +18,7 @@ type PsiNode = {
   created_by: string | null;
   created_at: string;
   created_by_name: string;
+  is_active: boolean;
 };
 
 type TreeNode = PsiNode & { children: TreeNode[] };
@@ -34,6 +35,10 @@ function statusBadgeClass(status: string) {
   if (status === "approved") return "bg-emerald-100 text-emerald-800";
   if (status === "rejected") return "bg-red-100 text-red-800";
   return "bg-yellow-100 text-yellow-900";
+}
+
+function activityBadgeClass(isActive: boolean) {
+  return isActive ? "bg-blue-100 text-blue-800" : "bg-slate-200 text-slate-700";
 }
 
 function buildTree(flat: PsiNode[]): TreeNode[] {
@@ -256,6 +261,9 @@ function PsiTreeNode({
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusBadgeClass(node.status)}`}>
               {node.status}
             </span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${activityBadgeClass(node.is_active)}`}>
+              {node.is_active ? "active" : "inactive"}
+            </span>
           </div>
           <p className="font-semibold text-slate-900">{node.title}</p>
           {node.description ? <p className="mt-1 text-xs text-slate-600">{node.description}</p> : null}
@@ -290,6 +298,27 @@ function PsiTreeNode({
               </button>
             </div>
           ) : null}
+          {isCeo && node.status === "approved" ? (
+            <div className="mt-2">
+              <button
+                type="button"
+                className={`rounded-lg px-2 py-1 text-xs font-semibold ${
+                  node.is_active ? "bg-slate-800 text-white" : "bg-emerald-600 text-white"
+                }`}
+                onClick={() =>
+                  void approveNode(
+                    session.id,
+                    node.id,
+                    node.is_active ? "deactivate" : "reactivate",
+                    onApproved,
+                    toast,
+                  )
+                }
+              >
+                {node.is_active ? "Deactivate" : "Reactivate"}
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
       {isOpen && node.children.length > 0 ? (
@@ -317,7 +346,7 @@ function PsiTreeNode({
 async function approveNode(
   actorId: string,
   nodeId: string,
-  action: "approve" | "reject",
+  action: "approve" | "reject" | "deactivate" | "reactivate",
   onDone: () => void,
   toast: ToastApi,
 ) {
@@ -330,7 +359,10 @@ async function approveNode(
     toast.error("Update failed");
     return;
   }
-  toast.success(action === "approve" ? "Approved" : "Rejected");
+  if (action === "approve") toast.success("Approved");
+  else if (action === "reject") toast.success("Rejected");
+  else if (action === "deactivate") toast.warning("Node deactivated");
+  else toast.success("Node reactivated");
   onDone();
 }
 

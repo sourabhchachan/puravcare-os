@@ -181,6 +181,7 @@ CREATE TABLE public.psi_nodes (
   description text,
   parent_id uuid REFERENCES public.psi_nodes (id) ON DELETE SET NULL,
   status text NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed', 'approved', 'rejected')),
+  is_active boolean NOT NULL DEFAULT true,
   created_by uuid REFERENCES public.users (id),
   approved_by uuid REFERENCES public.users (id),
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -199,6 +200,7 @@ CREATE TABLE public.task_master (
   recurrence text CHECK (recurrence IN ('one-time', 'hourly', '2h', '4h', '6h', '8h', 'daily', 'weekly')),
   priority text CHECK (priority IN ('critical', 'high', 'normal', 'low')),
   is_patient_linked boolean NOT NULL DEFAULT false,
+  psi_node_id uuid REFERENCES public.psi_nodes (id) ON DELETE SET NULL,
   is_active boolean NOT NULL DEFAULT true,
   created_by uuid REFERENCES public.users (id),
   created_at timestamptz NOT NULL DEFAULT now()
@@ -622,6 +624,15 @@ CREATE POLICY "Allow all for authenticated users"
   TO authenticated
   USING (true)
   WITH CHECK (true);
+
+-- ----------------------------------------------------------------------------
+-- Post-deploy safety migrations
+-- ----------------------------------------------------------------------------
+ALTER TABLE public.psi_nodes
+ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+
+ALTER TABLE public.task_master
+ADD COLUMN IF NOT EXISTS psi_node_id uuid REFERENCES public.psi_nodes (id);
 
 -- ============================================================================
 -- Done — schema ready for Phase 3 (role-specific RLS tightening)

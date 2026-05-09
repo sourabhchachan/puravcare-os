@@ -11,7 +11,9 @@ type Template = {
   title: string;
   task_type: string;
   is_active: boolean;
+  psi_node_id: string | null;
 };
+type PsiOpt = { id: string; title: string };
 
 function typeLabel(t: string) {
   return normalizeTemplateTaskType(t) === "clinical" ? "Clinical" : "Ops";
@@ -21,6 +23,7 @@ export default function TaskMasterPage() {
   const { session, loading: authLoading } = useAuth();
   const toast = useToast();
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [psiNodes, setPsiNodes] = useState<PsiOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [sheet, setSheet] = useState<Template | "new" | null>(null);
@@ -30,14 +33,24 @@ export default function TaskMasterPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/task-master", { headers: { "x-actor-id": session.id } });
-      const data = (await res.json()) as { templates?: Template[]; error?: string };
-      if (!res.ok) {
-        setError(data.error ?? "Could not load templates");
-        toast.error(data.error ?? "Could not load templates");
+      const [resTemplates, resMeta] = await Promise.all([
+        fetch("/api/task-master", { headers: { "x-actor-id": session.id } }),
+        fetch("/api/task-meta", { headers: { "x-actor-id": session.id } }),
+      ]);
+      const dataTemplates = (await resTemplates.json()) as { templates?: Template[]; error?: string };
+      const dataMeta = (await resMeta.json()) as { psi_nodes?: PsiOpt[]; error?: string };
+      if (!resTemplates.ok) {
+        setError(dataTemplates.error ?? "Could not load templates");
+        toast.error(dataTemplates.error ?? "Could not load templates");
         return;
       }
-      setTemplates((data.templates ?? []) as Template[]);
+      if (!resMeta.ok) {
+        setError(dataMeta.error ?? "Could not load PSI nodes");
+        toast.error(dataMeta.error ?? "Could not load PSI nodes");
+        return;
+      }
+      setTemplates((dataTemplates.templates ?? []) as Template[]);
+      setPsiNodes(dataMeta.psi_nodes ?? []);
     } catch {
       setError("Could not load templates");
       toast.error("Could not load templates");
@@ -130,6 +143,7 @@ export default function TaskMasterPage() {
         <TemplateSheet
           sessionId={session.id}
           initial={sheet === "new" ? null : sheet}
+          psiNodes={psiNodes}
           onClose={() => setSheet(null)}
           onSaved={() => {
             setSheet(null);
@@ -145,11 +159,13 @@ export default function TaskMasterPage() {
 function TemplateSheet({
   sessionId,
   initial,
+  psiNodes,
   onClose,
   onSaved,
 }: {
   sessionId: string;
   initial: Template | null;
+  psiNodes: PsiOpt[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -159,6 +175,7 @@ function TemplateSheet({
     initial ? normalizeTemplateTaskType(initial.task_type) : "ops",
   );
   const [active, setActive] = useState(initial?.is_active ?? true);
+  const [psiNodeId, setPsiNodeId] = useState(initial?.psi_node_id ?? "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -167,7 +184,7 @@ function TemplateSheet({
     setError("");
     setSaving(true);
     try {
-      const body = { title, task_type: taskType, is_active: active };
+      const body = { title, task_type: taskType, is_active: active, psi_node_id: psiNodeId || null };
       const isNew = !initial;
       const res = isNew
         ? await fetch("/api/task-master", {
@@ -220,6 +237,21 @@ function TemplateSheet({
             >
               <option value="ops">Ops</option>
               <option value="clinical">Clinical</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">PSI Link</label>
+            <select
+              value={psiNodeId}
+              onChange={(e) => setPsiNodeId(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">None</option>
+              {psiNodes.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.title}
+                </option>
+              ))}
             </select>
           </div>
           <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">

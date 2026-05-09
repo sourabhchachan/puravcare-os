@@ -3,11 +3,19 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { useToast } from "@/components/ui/ToastProvider";
+import { ToastProvider, useToast } from "@/components/ui/ToastProvider";
 import { getStoredSession, setStoredSession } from "@/lib/auth/storage";
 import type { SessionUser } from "@/lib/auth/types";
 
 export default function LoginPage() {
+  return (
+    <ToastProvider>
+      <LoginPageScreen />
+    </ToastProvider>
+  );
+}
+
+function LoginPageScreen() {
   const router = useRouter();
   const toast = useToast();
   const [loginId, setLoginId] = useState("");
@@ -59,6 +67,7 @@ export default function LoginPage() {
 
       setStoredSession(payload.user, keepSignedIn);
       const first = payload.user.full_name.trim().split(/\s+/)[0] ?? payload.user.full_name;
+      window.sessionStorage.setItem("pc_welcome_toast_name", first);
       toast.success(`Welcome back, ${first}`);
 
       if (payload.user.must_change_password) {

@@ -11,7 +11,7 @@ import { normalizeTemplateTaskType } from "@/lib/task/taskTypes";
 type UserOpt = { id: string; full_name: string; role: string };
 type PatientOpt = { id: string; full_name: string; uhid: string };
 type PsiOpt = { id: string; title: string; type: string };
-type TemplateOpt = { id: string; title: string; task_type: "ops" | "clinical" };
+type TemplateOpt = { id: string; title: string; task_type: "ops" | "clinical"; psi_node_id: string | null };
 
 const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly"] as const;
 
@@ -56,7 +56,7 @@ export default function NewTaskPage() {
           users?: UserOpt[];
           patients?: PatientOpt[];
           psi_nodes?: PsiOpt[];
-          task_templates?: { id: string; title: string; task_type: string }[];
+          task_templates?: { id: string; title: string; task_type: string; psi_node_id: string | null }[];
           can_create_tasks?: boolean;
         };
         if (!res.ok || cancelled) return;
@@ -85,6 +85,10 @@ export default function NewTaskPage() {
       cancelled = true;
     };
   }, [session, toast]);
+
+  useEffect(() => {
+    setPsiNodeId(selectedTemplate?.psi_node_id ?? "");
+  }, [selectedTemplate?.id, selectedTemplate?.psi_node_id]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -298,7 +302,7 @@ export default function NewTaskPage() {
             <option value="">None</option>
             {psiNodes.map((n) => (
               <option key={n.id} value={n.id}>
-                {n.title} ({n.type})
+                {n.title}
               </option>
             ))}
           </select>

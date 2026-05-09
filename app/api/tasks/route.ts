@@ -156,7 +156,7 @@ export async function POST(request: Request) {
 
   const { data: master, error: mErr } = await supabase
     .from("task_master")
-    .select("id, title, task_type, is_active")
+    .select("id, title, task_type, is_active, psi_node_id")
     .eq("id", taskMasterId)
     .maybeSingle();
 
@@ -177,12 +177,15 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (!assignee) return NextResponse.json({ error: "invalid_assignee" }, { status: 400 });
 
-  if (body.psi_node_id) {
+  const resolvedPsiNodeId = body.psi_node_id ?? (master.psi_node_id as string | null) ?? null;
+  if (resolvedPsiNodeId) {
     const { data: psi } = await supabase
       .from("psi_nodes")
       .select("id")
-      .eq("id", body.psi_node_id)
+      .eq("id", resolvedPsiNodeId)
       .eq("status", "approved")
+      .eq("type", "problem")
+      .eq("is_active", true)
       .maybeSingle();
     if (!psi) return NextResponse.json({ error: "invalid_psi" }, { status: 400 });
   }
@@ -199,7 +202,7 @@ export async function POST(request: Request) {
     assignee_id: body.assignee_id,
     created_by: actorId,
     patient_id: taskType === "clinical" ? body.patient_id : null,
-    psi_node_id: body.psi_node_id ?? null,
+    psi_node_id: resolvedPsiNodeId,
     task_master_id: taskMasterId,
     due_at: body.due_at || null,
     priority,

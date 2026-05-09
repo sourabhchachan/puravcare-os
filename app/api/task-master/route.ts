@@ -42,6 +42,7 @@ type PostBody = {
   title?: string;
   task_type?: string;
   is_active?: boolean;
+  psi_node_id?: string | null;
 };
 
 export async function POST(request: Request) {
@@ -65,13 +66,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_type" }, { status: 400 });
   }
 
+  const psiNodeId = body.psi_node_id?.trim() || null;
   const supabase = createServiceClient();
+  if (psiNodeId) {
+    const { data: psi } = await supabase
+      .from("psi_nodes")
+      .select("id")
+      .eq("id", psiNodeId)
+      .eq("status", "approved")
+      .eq("type", "problem")
+      .eq("is_active", true)
+      .maybeSingle();
+    if (!psi) return NextResponse.json({ error: "invalid_psi_node" }, { status: 400 });
+  }
+
   const { data, error } = await supabase
     .from("task_master")
     .insert({
       title,
       task_type: taskType,
       is_active: body.is_active !== false,
+      psi_node_id: psiNodeId,
       created_by: actorId!,
     })
     .select("*")

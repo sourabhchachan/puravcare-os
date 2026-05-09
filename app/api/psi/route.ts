@@ -13,6 +13,7 @@ type PsiRow = {
   created_by: string | null;
   created_at: string;
   approved_by: string | null;
+  is_active: boolean;
 };
 
 export async function GET(request: Request) {
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
   const supabase = createServiceClient();
   const { data: rows, error } = await supabase
     .from("psi_nodes")
-    .select("id, type, title, description, parent_id, status, created_by, created_at, approved_by")
+    .select("id, type, title, description, parent_id, status, created_by, created_at, approved_by, is_active")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
@@ -103,9 +104,10 @@ export async function POST(request: Request) {
       description: (body.description ?? "").trim() || null,
       parent_id: type === "problem" ? null : parentId,
       status: "proposed",
+      is_active: true,
       created_by: actorId!,
     })
-    .select("id, type, title, description, parent_id, status, created_by, created_at, approved_by")
+    .select("id, type, title, description, parent_id, status, created_by, created_at, approved_by, is_active")
     .single();
 
   if (error || !data) return NextResponse.json({ error: "insert_failed" }, { status: 500 });

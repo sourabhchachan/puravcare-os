@@ -4,7 +4,7 @@ import { assertActiveUser, canCreateTasks, getActorId, getUserRole } from "@/lib
 import { createServiceClient } from "@/lib/supabase/service";
 import { normalizeTemplateTaskType } from "@/lib/task/taskTypes";
 
-/** Active users, active IPD patients, approved PSI nodes, task templates — for task forms */
+/** Active users, active IPD patients, approved active Problem nodes, task templates — for task forms */
 export async function GET(request: Request) {
   const actorId = getActorId(request);
   if (!(await assertActiveUser(actorId))) {
@@ -23,10 +23,23 @@ export async function GET(request: Request) {
       .eq("status", "active")
       .eq("admission_type", "ipd")
       .order("full_name"),
-    supabase.from("psi_nodes").select("id, title, type").eq("status", "approved").order("title"),
+    supabase
+      .from("psi_nodes")
+      .select("id, title, type")
+      .eq("status", "approved")
+      .eq("type", "problem")
+      .eq("is_active", true)
+      .order("title"),
     canCreate
-      ? supabase.from("task_master").select("id, title, task_type").eq("is_active", true).order("title")
-      : Promise.resolve({ data: [] as { id: string; title: string; task_type: string }[], error: null }),
+      ? supabase
+          .from("task_master")
+          .select("id, title, task_type, psi_node_id")
+          .eq("is_active", true)
+          .order("title")
+      : Promise.resolve({
+          data: [] as { id: string; title: string; task_type: string; psi_node_id: string | null }[],
+          error: null,
+        }),
   ]);
 
   if (usersRes.error) {
@@ -37,6 +50,7 @@ export async function GET(request: Request) {
     id: row.id,
     title: row.title,
     task_type: normalizeTemplateTaskType(row.task_type),
+    psi_node_id: (row.psi_node_id as string | null) ?? null,
   }));
 
   return NextResponse.json({

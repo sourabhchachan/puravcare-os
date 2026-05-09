@@ -189,6 +189,14 @@ export default function DashboardHomePage() {
     void loadPulse();
   }, [loadPulse]);
 
+  useEffect(() => {
+    if (!session) return;
+    const welcomeName = window.sessionStorage.getItem("pc_welcome_toast_name");
+    if (!welcomeName) return;
+    toast.success(`Welcome back, ${welcomeName}`);
+    window.sessionStorage.removeItem("pc_welcome_toast_name");
+  }, [session, toast]);
+
   if (loading || !session) return null;
 
   const p = pulse;
