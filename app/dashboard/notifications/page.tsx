@@ -15,6 +15,32 @@ type Row = {
   related_task_id: string | null;
 };
 
+const NOTICE_POSTED_BY_SEP = " — Posted by: ";
+
+/** Split notice notification body into preview + author (new format); legacy rows return preview only. */
+function splitNoticeNotificationBody(body: string | null): { preview: string | null; postedBy: string | null } {
+  if (!body?.trim()) return { preview: null, postedBy: null };
+  const i = body.lastIndexOf(NOTICE_POSTED_BY_SEP);
+  if (i === -1) return { preview: body, postedBy: null };
+  return {
+    preview: body.slice(0, i).trim() || null,
+    postedBy: body.slice(i + NOTICE_POSTED_BY_SEP.length).trim() || null,
+  };
+}
+
+function NoticeNotificationLines({ body }: { body: string }) {
+  const { preview, postedBy } = splitNoticeNotificationBody(body);
+  if (postedBy) {
+    return (
+      <>
+        {preview ? <p className="mt-1 text-sm text-slate-600">{preview}</p> : null}
+        <p className="mt-1 text-xs font-medium text-slate-700">Posted by: {postedBy}</p>
+      </>
+    );
+  }
+  return <p className="mt-1 text-sm text-slate-600">{body}</p>;
+}
+
 function timeAgo(iso: string) {
   const sec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
   if (sec < 60) return `${sec}s ago`;
@@ -121,7 +147,11 @@ export default function NotificationsPage() {
                 <p className="font-semibold text-slate-900">{n.title}</p>
                 {!n.is_read ? <span className="h-2 w-2 shrink-0 rounded-full bg-[#2563EB]" aria-hidden /> : null}
               </div>
-              {n.body ? <p className="mt-1 text-sm text-slate-600">{n.body}</p> : null}
+              {n.type === "notice" && n.body ? (
+                <NoticeNotificationLines body={n.body} />
+              ) : n.body ? (
+                <p className="mt-1 text-sm text-slate-600">{n.body}</p>
+              ) : null}
               <p className="mt-2 text-xs text-slate-500">{timeAgo(n.created_at)}</p>
             </button>
           </li>

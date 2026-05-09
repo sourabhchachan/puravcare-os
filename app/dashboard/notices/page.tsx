@@ -84,9 +84,8 @@ export default function NoticesPage() {
           <li key={n.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="font-semibold text-slate-900">{n.title}</h2>
             {n.body ? <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{n.body}</p> : null}
-            <p className="mt-3 text-xs text-slate-500">
-              {n.posted_by} · {formatDt(n.created_at)}
-            </p>
+            <p className="mt-3 text-xs font-medium text-slate-600">Posted by {n.posted_by}</p>
+            <p className="mt-1 text-xs text-slate-500">{formatDt(n.created_at)}</p>
           </li>
         ))}
       </ul>

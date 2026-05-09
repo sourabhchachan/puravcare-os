@@ -71,6 +71,9 @@ export async function POST(request: Request) {
 
   if (error || !row) return NextResponse.json({ error: "insert_failed" }, { status: 500 });
 
+  const { data: creatorRow } = await supabase.from("users").select("full_name").eq("id", actorId!).maybeSingle();
+  const creatorFullName = ((creatorRow?.full_name as string | undefined) ?? "").trim() || "Unknown";
+
   const { data: activeUsers, error: activeUsersError } = await supabase
     .from("users")
     .select("id")
@@ -82,7 +85,9 @@ export async function POST(request: Request) {
 
   if ((activeUsers ?? []).length) {
     const noticeBody = (row.body as string | null)?.trim() ?? "";
-    const notificationBody = noticeBody.slice(0, 100);
+    const snippet = noticeBody.slice(0, 100);
+    // Suffix must stay in sync with split logic in app/dashboard/notifications/page.tsx
+    const notificationBody = `${snippet} — Posted by: ${creatorFullName}`;
     const notifications = (activeUsers ?? []).map((u) => ({
       user_id: u.id as string,
       type: "notice",
@@ -96,15 +101,13 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: u } = await supabase.from("users").select("full_name").eq("id", actorId!).maybeSingle();
-
   return NextResponse.json({
     notice: {
       id: row.id,
       title: row.title,
       body: row.body,
       created_at: row.created_at,
-      posted_by: u?.full_name ?? "—",
+      posted_by: creatorFullName,
     },
   });
 }
