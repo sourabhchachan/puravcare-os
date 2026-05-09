@@ -4,6 +4,7 @@ import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { kolkataDayBoundsIso } from "@/lib/dashboard/kolkataDay";
 import { scanOverdueTaskNotifications } from "@/lib/notifications/scanOverdue";
 import { createServiceClient } from "@/lib/supabase/service";
+import { OPEN_ASSIGNMENT_STATUSES } from "@/lib/tasks/activeTaskFilters";
 
 /** Same notion as task list “Overdue” filter: open work, past due. */
 const OVERDUE_STATUSES = ["pending", "acknowledged", "in_progress", "blocked"];
@@ -34,6 +35,8 @@ export async function GET(request: Request) {
       .from("tasks")
       .select("id", { count: "exact", head: true })
       .eq("is_active", true)
+      .neq("status", "cancelled")
+      .neq("status", "waiting")
       .gte("created_at", startIso)
       .lte("created_at", endIso),
     supabase
@@ -50,7 +53,7 @@ export async function GET(request: Request) {
       .select("id", { count: "exact", head: true })
       .eq("is_active", true)
       .is("psi_node_id", null)
-      .neq("status", "closed"),
+      .in("status", OPEN_ASSIGNMENT_STATUSES),
   ]);
 
   let cashBalance = 0;

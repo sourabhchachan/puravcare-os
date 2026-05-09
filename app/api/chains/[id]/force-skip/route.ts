@@ -24,6 +24,8 @@ async function insertEvent(
   });
 }
 
+const SKIPPABLE_TASK_STATUSES = ["pending", "acknowledged", "in_progress", "blocked", "waiting"];
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: chainId } = await params;
   const actorId = getActorId(request);
@@ -63,14 +65,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: task } = await supabase.from("tasks").select("id, status").eq("id", step.task_id).maybeSingle();
   if (!task) return NextResponse.json({ error: "task_not_found" }, { status: 404 });
-  if (task.status !== "blocked") return NextResponse.json({ error: "task_not_blocked" }, { status: 400 });
+  if (!SKIPPABLE_TASK_STATUSES.includes(task.status as string)) {
+    return NextResponse.json({ error: "task_not_skippable" }, { status: 400 });
+  }
 
   const nowIso = new Date().toISOString();
+  const prevStatus = task.status as string;
 
-  await supabase
-    .from("task_chain_steps")
-    .update({ status: "skipped", skip_reason: reason })
-    .eq("id", step.id);
+  await supabase.from("task_chain_steps").update({ status: "skipped", skip_reason: reason }).eq("id", step.id);
 
   await supabase.from("tasks").update({ status: "closed", updated_at: nowIso }).eq("id", task.id);
 
@@ -78,7 +80,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     task_id: task.id as string,
     actor_id: actorId!,
     event_type: "force_skipped",
-    old_value: "blocked",
+    old_value: prevStatus,
     new_value: "closed",
     note: reason,
   });
@@ -86,7 +88,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     task_id: task.id as string,
     actor_id: actorId!,
     event_type: "status_changed",
-    old_value: "blocked",
+    old_value: prevStatus,
     new_value: "closed",
     note: "force_skipped",
   });

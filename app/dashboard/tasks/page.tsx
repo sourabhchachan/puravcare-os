@@ -15,6 +15,8 @@ type TaskRow = {
   due_at: string | null;
   priority: string;
   status: string;
+  from_chain?: boolean;
+  chain_title?: string | null;
 };
 
 const BASE_FILTERS = [
@@ -31,6 +33,14 @@ function EmptyIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <path d="M9 11l3 3L22 4" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChainIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="M8 12a2 2 0 110-4 2 2 0 010 4zm8 0a2 2 0 110-4 2 2 0 010 4zm-8.5 1.5h9M10 10.5h4" strokeLinecap="round" />
     </svg>
   );
 }
@@ -182,7 +192,20 @@ function TasksListInner() {
                 )} bg-white p-4 shadow-sm transition hover:shadow-md`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <p className="font-semibold text-slate-900">{t.title}</p>
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    {(t.from_chain || t.chain_title) && (
+                      <span className="mt-0.5 shrink-0 text-indigo-600" title={t.chain_title ? `Chain: ${t.chain_title}` : "Chain task"}>
+                        <ChainIcon className="h-4 w-4" />
+                      </span>
+                    )}
+                    <p
+                      className={`min-w-0 font-semibold ${
+                        t.status === "cancelled" ? "text-slate-500 line-through" : "text-slate-900"
+                      }`}
+                    >
+                      {t.title}
+                    </p>
+                  </div>
                   <div className="flex flex-wrap gap-1">
                     <PriorityBadge priority={t.priority} />
                     <StatusBadge status={t.status} />

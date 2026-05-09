@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { assertActiveUser, canCreateTasks, getActorId, getUserRole } from "@/lib/api/actor";
-import { notifyNewTaskAssigned } from "@/lib/notifications/taskNotify";
 import { createServiceClient } from "@/lib/supabase/service";
-import { taskTypeForInsertFromTemplate } from "@/lib/task/taskTypes";
-
-const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly"] as const;
+import { insertTaskFromMaster } from "@/lib/tasks/insertTaskFromMaster";
+import { OPEN_ASSIGNMENT_STATUSES } from "@/lib/tasks/activeTaskFilters";
 
 function attachAssigneeNames(
   tasks: Record<string, unknown>[],
@@ -16,6 +14,34 @@ function attachAssigneeNames(
     ...t,
     assignee_name: map[t.assignee_id as string] ?? "—",
   }));
+}
+
+async function enrichTasksWithChainMeta(
+  supabase: ReturnType<typeof createServiceClient>,
+  tasks: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
+  const ids = tasks.map((t) => t.id as string).filter(Boolean);
+  if (!ids.length) return tasks;
+  const { data: steps } = await supabase
+    .from("task_chain_steps")
+    .select("task_id, chain_id, task_chains(title)")
+    .in("task_id", ids);
+  const chainByTask: Record<string, { chain_title: string; chain_id: string }> = {};
+  for (const s of steps ?? []) {
+    const tid = s.task_id as string;
+    const rel = s.task_chains as { title: string } | { title: string }[] | null;
+    const title = Array.isArray(rel) ? rel[0]?.title : rel?.title;
+    if (tid && title) chainByTask[tid] = { chain_title: title, chain_id: s.chain_id as string };
+  }
+  return tasks.map((t) => {
+    const id = t.id as string;
+    const c = chainByTask[id];
+    return {
+      ...t,
+      chain_title: c?.chain_title ?? null,
+      chain_id: c?.chain_id ?? null,
+    } as Record<string, unknown>;
+  });
 }
 
 function resolveActorId(request: Request, bodyActor?: string): string | null {
@@ -44,7 +70,7 @@ export async function GET(request: Request) {
       .select("id", { count: "exact", head: true })
       .eq("is_active", true)
       .is("psi_node_id", null)
-      .neq("status", "closed");
+      .in("status", OPEN_ASSIGNMENT_STATUSES);
     if (!isCeo) {
       countQuery = countQuery.eq("assignee_id", actorId!);
     }
@@ -58,7 +84,7 @@ export async function GET(request: Request) {
   if (isCeo && assigneeFilter) {
     query = query.eq("assignee_id", assigneeFilter);
     if (openOnly) {
-      query = query.in("status", ["pending", "acknowledged", "in_progress", "done", "blocked"]);
+      query = query.in("status", [...OPEN_ASSIGNMENT_STATUSES, "done"]);
     }
   } else if (!isCeo) {
     query = query.eq("assignee_id", actorId!);
@@ -75,7 +101,7 @@ export async function GET(request: Request) {
       .lt("due_at", nowIso)
       .in("status", ["pending", "acknowledged", "in_progress", "blocked"]);
   } else if (filter === "unlinked") {
-    query = query.is("psi_node_id", null).neq("status", "closed");
+    query = query.is("psi_node_id", null).in("status", OPEN_ASSIGNMENT_STATUSES);
   }
 
   const { data: tasks, error } = await query;
@@ -83,7 +109,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
   }
 
-  const rows = tasks ?? [];
+  const rows = await enrichTasksWithChainMeta(supabase, tasks ?? []);
   const assigneeIds = [...new Set(rows.map((t) => t.assignee_id as string).filter(Boolean))];
   let users: { id: string; full_name: string }[] | null = [];
   if (assigneeIds.length) {
@@ -133,103 +159,37 @@ export async function POST(request: Request) {
 
   if (!body.assignee_id) return NextResponse.json({ error: "missing_assignee" }, { status: 400 });
 
-  const priority = body.priority;
-  if (!priority || !["critical", "high", "normal", "low"].includes(priority)) {
-    return NextResponse.json({ error: "invalid_priority" }, { status: 400 });
-  }
-
-  const proofType = body.proof_type;
-  if (!proofType || !["tap", "photo", "countersign"].includes(proofType)) {
-    return NextResponse.json({ error: "invalid_proof" }, { status: 400 });
-  }
-
-  const recurrence = body.recurrence;
-  if (!recurrence || !RECURRENCE.includes(recurrence as (typeof RECURRENCE)[number])) {
-    return NextResponse.json({ error: "invalid_recurrence" }, { status: 400 });
-  }
-
-  if (proofType === "countersign" && !body.countersign_user_id) {
-    return NextResponse.json({ error: "missing_countersigner" }, { status: 400 });
-  }
-
   const supabase = createServiceClient();
-
-  const { data: master, error: mErr } = await supabase
-    .from("task_master")
-    .select("id, title, task_type, is_active, psi_node_id")
-    .eq("id", taskMasterId)
-    .maybeSingle();
-
-  if (mErr || !master || !master.is_active) {
-    return NextResponse.json({ error: "invalid_task_master" }, { status: 400 });
-  }
-
-  const taskType = taskTypeForInsertFromTemplate(master.task_type as string);
-  if (taskType === "clinical" && !body.patient_id) {
-    return NextResponse.json({ error: "missing_patient" }, { status: 400 });
-  }
-
-  const { data: assignee } = await supabase
-    .from("users")
-    .select("id")
-    .eq("id", body.assignee_id)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (!assignee) return NextResponse.json({ error: "invalid_assignee" }, { status: 400 });
-
-  const resolvedPsiNodeId = body.psi_node_id ?? (master.psi_node_id as string | null) ?? null;
-  if (resolvedPsiNodeId) {
-    const { data: psi } = await supabase
-      .from("psi_nodes")
-      .select("id")
-      .eq("id", resolvedPsiNodeId)
-      .eq("status", "approved")
-      .eq("type", "problem")
-      .eq("is_active", true)
-      .maybeSingle();
-    if (!psi) return NextResponse.json({ error: "invalid_psi" }, { status: 400 });
-  }
-
-  if (body.patient_id) {
-    const { data: pat } = await supabase.from("patients").select("id").eq("id", body.patient_id).maybeSingle();
-    if (!pat) return NextResponse.json({ error: "invalid_patient" }, { status: 400 });
-  }
-
-  const title = (master.title as string).trim();
-  const insertRow = {
-    title,
-    task_type: taskType,
-    assignee_id: body.assignee_id,
-    created_by: actorId,
-    patient_id: taskType === "clinical" ? body.patient_id : null,
-    psi_node_id: resolvedPsiNodeId,
-    task_master_id: taskMasterId,
-    due_at: body.due_at || null,
-    priority,
-    proof_type: proofType,
-    countersign_user_id: proofType === "countersign" ? body.countersign_user_id : null,
-    recurrence,
-    status: "pending",
-    is_active: true,
-  };
-
-  const { data: task, error } = await supabase.from("tasks").insert(insertRow).select("*").single();
-  if (error || !task) {
-    return NextResponse.json({ error: "insert_failed" }, { status: 500 });
-  }
-
-  await supabase.from("task_events").insert({
-    task_id: task.id as string,
-    actor_id: actorId,
-    event_type: "created",
-    old_value: null,
-    new_value: "pending",
-    note: null,
+  const ins = await insertTaskFromMaster(supabase, {
+    actorId,
+    taskMasterId,
+    assigneeId: body.assignee_id,
+    dueAt: body.due_at ?? null,
+    patientId: body.patient_id ?? null,
+    psiNodeId: body.psi_node_id ?? null,
+    fromChain: false,
+    initialStatus: "pending",
+    priority: body.priority,
+    proofType: body.proof_type,
+    recurrence: body.recurrence,
+    countersignUserId: body.countersign_user_id,
   });
 
-  if (body.assignee_id !== actorId) {
-    await notifyNewTaskAssigned(supabase, body.assignee_id, title, task.id as string);
+  if (ins.error) {
+    const map: Record<string, number> = {
+      invalid_priority: 400,
+      invalid_proof: 400,
+      invalid_recurrence: 400,
+      missing_countersigner: 400,
+      invalid_task_master: 400,
+      missing_patient: 400,
+      invalid_assignee: 400,
+      invalid_psi: 400,
+      invalid_patient: 400,
+      insert_failed: 500,
+    };
+    return NextResponse.json({ error: ins.error }, { status: map[ins.error] ?? 400 });
   }
 
-  return NextResponse.json({ task });
+  return NextResponse.json({ task: ins.task });
 }

@@ -2,13 +2,16 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
+import { assertCeoOrOps } from "@/lib/api/ceoOrOps";
 import {
   isChainTaskProgressBlocked,
   maybeActivateVerticalChainOnAcknowledge,
   pauseChainsForBlockedTask,
   processAllChainsAfterTaskClosed,
+  processChainAfterTaskCancelled,
+  resumeChainsForUnblockedTask,
 } from "@/lib/chains/onTaskClose";
-import { notifyNewTaskAssigned, notifyTaskBlockedRequester, notifyTaskCompletedRequester } from "@/lib/notifications/taskNotify";
+import { notifyNewTaskAssigned, notifyTaskBlockedCeoAndCreator, notifyTaskCompletedRequester } from "@/lib/notifications/taskNotify";
 import { createServiceClient } from "@/lib/supabase/service";
 import { canViewTask as userCanViewTask } from "@/lib/tasks/canViewTask";
 
@@ -98,6 +101,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     psi = s;
   }
 
+  let chain: { id: string; title: string } | null = null;
+  const { data: chainStep } = await supabase
+    .from("task_chain_steps")
+    .select("chain_id")
+    .eq("task_id", id)
+    .maybeSingle();
+  if (chainStep?.chain_id) {
+    const { data: ch } = await supabase.from("task_chains").select("id, title").eq("id", chainStep.chain_id).maybeSingle();
+    if (ch) chain = { id: ch.id as string, title: ch.title as string };
+  }
+
   const eventsWithActors = (events ?? []).map((e) => ({
     ...e,
     actor_name: actorNames[e.actor_id as string] ?? "—",
@@ -111,6 +125,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     countersign_name: task.countersign_user_id ? userMap[task.countersign_user_id]?.full_name ?? null : null,
     patient,
     psi,
+    chain,
   });
 }
 
@@ -295,9 +310,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       break;
     }
     case "reassign": {
+      const { data: inChain } = await supabase.from("task_chain_steps").select("id").eq("task_id", id).maybeSingle();
       const ceoOk = await assertCeo(actorId);
       const creatorOk = t.created_by === actorId;
-      if (!ceoOk && !creatorOk) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      if (inChain) {
+        if (!ceoOk) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      } else if (!ceoOk && !creatorOk) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
       const newAssignee = body.new_assignee_id?.trim();
       const reason = (body.reason ?? "").trim();
       if (!newAssignee || !reason) return NextResponse.json({ error: "missing_fields" }, { status: 400 });
@@ -339,14 +359,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (!["pending", "acknowledged", "in_progress"].includes(t.status)) {
         return NextResponse.json({ error: "invalid_state" }, { status: 400 });
       }
-      await supabase.from("tasks").update({ status: "blocked", updated_at: nowIso }).eq("id", id);
+      const blockNote = (body.note ?? "").trim();
+      if (!blockNote) return NextResponse.json({ error: "missing_note" }, { status: 400 });
+      await supabase
+        .from("tasks")
+        .update({ status: "blocked", block_reason: blockNote, blocked_at: nowIso, updated_at: nowIso })
+        .eq("id", id);
       await insertEvent(supabase, {
         task_id: id,
         actor_id: actorId,
         event_type: "blocked",
         old_value: t.status,
         new_value: "blocked",
-        note: body.note?.trim() || null,
+        note: blockNote,
       });
       await insertEvent(supabase, {
         task_id: id,
@@ -354,10 +379,73 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         event_type: "status_changed",
         old_value: t.status,
         new_value: "blocked",
-        note: body.note?.trim() || null,
+        note: blockNote,
       });
       await pauseChainsForBlockedTask(supabase, id, t.title);
-      await notifyTaskBlockedRequester(supabase, t.created_by, actorId, t.title, id);
+      await notifyTaskBlockedCeoAndCreator(supabase, actorId, t.created_by, t.title, id);
+      break;
+    }
+    case "unblock": {
+      if (!(await assertCeoOrOps(actorId))) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      if (t.status !== "blocked") return NextResponse.json({ error: "invalid_state" }, { status: 400 });
+      const unblockNote = (body.note ?? "").trim();
+      if (!unblockNote) return NextResponse.json({ error: "missing_note" }, { status: 400 });
+      await supabase
+        .from("tasks")
+        .update({
+          status: "in_progress",
+          block_reason: null,
+          blocked_at: null,
+          updated_at: nowIso,
+        })
+        .eq("id", id);
+      await insertEvent(supabase, {
+        task_id: id,
+        actor_id: actorId,
+        event_type: "unblocked",
+        old_value: "blocked",
+        new_value: "in_progress",
+        note: unblockNote,
+      });
+      await insertEvent(supabase, {
+        task_id: id,
+        actor_id: actorId,
+        event_type: "status_changed",
+        old_value: "blocked",
+        new_value: "in_progress",
+        note: unblockNote,
+      });
+      await resumeChainsForUnblockedTask(supabase, id);
+      break;
+    }
+    case "cancel": {
+      const ceoOk = await assertCeo(actorId);
+      const creatorOk = t.created_by === actorId;
+      if (!ceoOk && !creatorOk) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      if (!["pending", "acknowledged"].includes(t.status)) {
+        return NextResponse.json({ error: "invalid_state" }, { status: 400 });
+      }
+      const cancelReason = (body.reason ?? "").trim();
+      if (!cancelReason) return NextResponse.json({ error: "missing_reason" }, { status: 400 });
+      await supabase
+        .from("tasks")
+        .update({
+          status: "cancelled",
+          cancel_reason: cancelReason,
+          cancelled_by: actorId,
+          cancelled_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq("id", id);
+      await insertEvent(supabase, {
+        task_id: id,
+        actor_id: actorId,
+        event_type: "cancelled",
+        old_value: t.status,
+        new_value: "cancelled",
+        note: cancelReason,
+      });
+      await processChainAfterTaskCancelled(supabase, id, cancelReason);
       break;
     }
     default:

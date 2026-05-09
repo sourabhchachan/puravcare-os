@@ -68,6 +68,12 @@ export default function TaskDetailPage() {
 
   const [photoUrl, setPhotoUrl] = useState("");
   const [blockNote, setBlockNote] = useState("");
+  const [blockSheetOpen, setBlockSheetOpen] = useState(false);
+  const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [unblockSheetOpen, setUnblockSheetOpen] = useState(false);
+  const [unblockNote, setUnblockNote] = useState("");
+  const [chainInfo, setChainInfo] = useState<{ id: string; title: string } | null>(null);
   const [reassignOpen, setReassignOpen] = useState(false);
   const [newAssignee, setNewAssignee] = useState("");
   const [reassignReason, setReassignReason] = useState("");
@@ -87,6 +93,7 @@ export default function TaskDetailPage() {
         countersign_name?: string | null;
         patient?: { full_name: string; uhid: string } | null;
         psi?: { title: string } | null;
+        chain?: { id: string; title: string } | null;
         error?: string;
       };
       if (!res.ok) {
@@ -102,6 +109,7 @@ export default function TaskDetailPage() {
       setCountersignName(data.countersign_name ?? null);
       setPatient(data.patient ?? null);
       setPsi(data.psi ?? null);
+      setChainInfo(data.chain ?? null);
 
       const meta = await fetch("/api/task-meta", { headers: { "x-actor-id": session.id } });
       const metaJson = (await meta.json()) as { users?: { id: string; full_name: string }[] };
@@ -142,6 +150,8 @@ export default function TaskDetailPage() {
         countersign: "Task completed",
         reassign: "Task reassigned",
         mark_blocked: "Marked as blocked",
+        cancel: "Task cancelled",
+        unblock: "Task unblocked",
       };
       toast.success(okLabels[action] ?? "Saved");
       await load();
@@ -173,8 +183,10 @@ export default function TaskDetailPage() {
   const isAssignee = task.assignee_id === session.id;
   const isCreator = task.created_by === session.id;
   const isCeo = session.role === "ceo";
+  const isCeoOrOps = session.role === "ceo" || session.role === "ops";
   const isCounter = task.countersign_user_id === session.id;
-  const canReassign = isCeo || isCreator;
+  const inChain = Boolean(chainInfo);
+  const canReassign = isCeo || (isCreator && !inChain);
 
   const showAck = isAssignee && task.status === "pending";
   const showMarkDoneTapOrCounter =
@@ -184,6 +196,9 @@ export default function TaskDetailPage() {
   const showCounterSign = isCounter && task.proof_type === "countersign" && task.status === "done";
   const showBlock =
     isAssignee && ["pending", "acknowledged", "in_progress"].includes(task.status as string);
+  const showUnblock = isCeoOrOps && task.status === "blocked";
+  const showCancel =
+    (isCeo || isCreator) && (task.status === "pending" || task.status === "acknowledged");
 
   return (
     <div className="space-y-4 pb-8">
@@ -199,12 +214,24 @@ export default function TaskDetailPage() {
         )} bg-white p-4 shadow-sm`}
       >
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <h1 className="text-lg font-semibold text-slate-900">{task.title as string}</h1>
+          <h1
+            className={`text-lg font-semibold ${
+              task.status === "cancelled" ? "text-slate-500 line-through" : "text-slate-900"
+            }`}
+          >
+            {task.title as string}
+          </h1>
           <div className="flex flex-wrap gap-1">
             <PriorityBadge priority={task.priority as string} />
             <StatusBadge status={task.status as string} />
           </div>
         </div>
+
+        {chainInfo ? (
+          <p className="mt-3 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+            Part of chain: <span className="font-semibold">{chainInfo.title}</span>
+          </p>
+        ) : null}
 
         <dl className="mt-4 space-y-2 text-sm text-slate-700">
           <div className="flex justify-between gap-2">
@@ -257,6 +284,18 @@ export default function TaskDetailPage() {
             <div className="flex flex-col gap-1">
               <dt className="text-slate-500">Last reassign reason</dt>
               <dd className="font-medium text-slate-800">{task.reassign_reason as string}</dd>
+            </div>
+          ) : null}
+          {(task as { block_reason?: string | null }).block_reason ? (
+            <div className="flex flex-col gap-1">
+              <dt className="text-slate-500">Block reason</dt>
+              <dd className="font-medium text-amber-900">{(task as { block_reason?: string }).block_reason}</dd>
+            </div>
+          ) : null}
+          {(task as { cancel_reason?: string | null }).cancel_reason ? (
+            <div className="flex flex-col gap-1">
+              <dt className="text-slate-500">Cancel reason</dt>
+              <dd className="font-medium text-slate-700">{(task as { cancel_reason?: string }).cancel_reason}</dd>
             </div>
           ) : null}
           {task.proof_photo_url ? (
@@ -346,23 +385,25 @@ export default function TaskDetailPage() {
         ) : null}
 
         {showBlock ? (
-          <div className="space-y-2 border-t border-slate-100 pt-3">
-            <label className="block text-xs font-medium text-slate-600">Block note (optional)</label>
-            <textarea
-              value={blockNote}
-              onChange={(e) => setBlockNote(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
-              rows={2}
-            />
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void patch("mark_blocked", { note: blockNote.trim() })}
-              className="w-full rounded-lg border border-red-300 bg-red-50 py-2.5 text-sm font-semibold text-red-800 disabled:opacity-50"
-            >
-              Mark blocked
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setBlockSheetOpen(true)}
+            className="w-full rounded-lg bg-amber-500 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            Block task
+          </button>
+        ) : null}
+
+        {showUnblock ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setUnblockSheetOpen(true)}
+            className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            Unblock task
+          </button>
         ) : null}
 
         {canReassign ? (
@@ -376,6 +417,19 @@ export default function TaskDetailPage() {
           </button>
         ) : null}
       </div>
+
+      {showCancel ? (
+        <div className="rounded-xl border border-red-100 bg-white p-4 shadow-sm">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setCancelSheetOpen(true)}
+            className="w-full rounded-lg bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            Cancel task
+          </button>
+        </div>
+      ) : null}
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-2">
@@ -416,6 +470,102 @@ export default function TaskDetailPage() {
             toast.success("Export downloaded");
           }}
         />
+      ) : null}
+
+      {blockSheetOpen ? (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+          <button type="button" className="flex-1" aria-label="Close" onClick={() => setBlockSheetOpen(false)} />
+          <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+            <h2 className="text-lg font-semibold text-amber-700">Block task</h2>
+            <p className="mt-1 text-xs text-slate-600">Reason is required. CEO and the task creator will be notified.</p>
+            <label className="mt-3 block text-xs font-medium text-slate-600">Reason</label>
+            <textarea
+              value={blockNote}
+              onChange={(e) => setBlockNote(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-amber-500 focus:ring-2"
+              rows={3}
+            />
+            <button
+              type="button"
+              disabled={busy || !blockNote.trim()}
+              onClick={async () => {
+                const ok = await patch("mark_blocked", { note: blockNote.trim() });
+                if (ok) {
+                  setBlockSheetOpen(false);
+                  setBlockNote("");
+                }
+              }}
+              className="mt-4 w-full rounded-lg bg-amber-500 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Confirm block
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {cancelSheetOpen ? (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+          <button type="button" className="flex-1" aria-label="Close" onClick={() => setCancelSheetOpen(false)} />
+          <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+            <h2 className="text-lg font-semibold text-red-700">Cancel task</h2>
+            <p className="mt-1 text-xs text-slate-600">This cannot be undone. A reason is required.</p>
+            <label className="mt-3 block text-xs font-medium text-slate-600">Reason</label>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-red-500 focus:ring-2"
+              rows={3}
+            />
+            <button
+              type="button"
+              disabled={busy || !cancelReason.trim()}
+              onClick={async () => {
+                const ok = await patch("cancel", { reason: cancelReason.trim() });
+                if (ok) {
+                  setCancelSheetOpen(false);
+                  setCancelReason("");
+                }
+              }}
+              className="mt-4 w-full rounded-lg bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Confirm cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {unblockSheetOpen ? (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+          <button type="button" className="flex-1" aria-label="Close" onClick={() => setUnblockSheetOpen(false)} />
+          <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+            <h2 className="text-lg font-semibold text-emerald-800">Unblock task</h2>
+            <p className="mt-1 text-xs text-slate-600">The task will return to in progress. A note is required.</p>
+            <label className="mt-3 block text-xs font-medium text-slate-600">Note</label>
+            <textarea
+              value={unblockNote}
+              onChange={(e) => setUnblockNote(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-emerald-600 focus:ring-2"
+              rows={3}
+            />
+            <button
+              type="button"
+              disabled={busy || !unblockNote.trim()}
+              onClick={async () => {
+                const ok = await patch("unblock", { note: unblockNote.trim() });
+                if (ok) {
+                  setUnblockSheetOpen(false);
+                  setUnblockNote("");
+                }
+              }}
+              className="mt-4 w-full rounded-lg bg-emerald-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Confirm unblock
+            </button>
+          </div>
+        </div>
       ) : null}
 
       {reassignOpen ? (

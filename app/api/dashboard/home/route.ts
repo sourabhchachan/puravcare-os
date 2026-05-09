@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { createServiceClient } from "@/lib/supabase/service";
+import { OPEN_ASSIGNMENT_STATUSES } from "@/lib/tasks/activeTaskFilters";
 
 function startOfTodayIso() {
   const now = new Date();
@@ -30,14 +31,15 @@ export async function GET(request: Request) {
       .select("id", { count: "exact", head: true })
       .eq("is_active", true)
       .eq("assignee_id", actorId!)
-      .neq("status", "closed"),
+      .in("status", OPEN_ASSIGNMENT_STATUSES),
     supabase
       .from("tasks")
       .select("id", { count: "exact", head: true })
       .eq("is_active", true)
       .eq("assignee_id", actorId!)
+      .not("due_at", "is", null)
       .lt("due_at", nowIso)
-      .neq("status", "closed"),
+      .in("status", OPEN_ASSIGNMENT_STATUSES),
     supabase.from("patients").select("id", { count: "exact", head: true }).eq("status", "active"),
   ]);
 

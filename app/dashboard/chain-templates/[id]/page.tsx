@@ -19,10 +19,13 @@ type Chain = {
 type StepRow = {
   id: string;
   task_id: string | null;
+  task_master_id: string | null;
+  default_assignee_role: string | null;
   step_order: number;
   status: string;
   skip_reason: string | null;
   task: { id: string; title: string; status: string } | null;
+  task_master: { id: string; title: string; task_type: string } | null;
 };
 
 function chainStatusBadge(status: string) {
@@ -31,6 +34,7 @@ function chainStatusBadge(status: string) {
   if (status === "active") return "bg-blue-100 text-blue-800";
   if (status === "paused") return "bg-red-100 text-red-800";
   if (status === "completed") return "bg-slate-200 text-slate-600";
+  if (status === "cancelled") return "bg-rose-100 text-rose-900";
   return "bg-slate-100 text-slate-700";
 }
 
@@ -52,9 +56,13 @@ export default function ChainDetailPage() {
   const [err, setErr] = useState("");
   const [loadingData, setLoadingData] = useState(true);
   const [skipStep, setSkipStep] = useState<StepRow | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const isCeoOrOps = session?.role === "ceo" || session?.role === "ops";
   const isCeo = session?.role === "ceo";
+
+  const needsActivation =
+    chain?.status === "approved" && steps.length > 0 && steps.every((s) => !s.task_id);
 
   const load = useCallback(async () => {
     if (!session || !id) return;
@@ -132,11 +140,20 @@ export default function ChainDetailPage() {
         ) : null}
       </div>
 
+      {needsActivation && isCeoOrOps ? (
+        <Link
+          href={`/dashboard/chain-templates/${id}/activate`}
+          className="inline-flex rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white"
+        >
+          Activate chain
+        </Link>
+      ) : null}
+
       {isCeoOrOps ? (
         <div className="flex flex-wrap gap-2">
-          {chain.status === "proposed" ? (
+          {chain.status === "proposed" && isCeo ? (
             <button type="button" onClick={() => void patchChain("approve")} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">
-              Approve
+              Approve template
             </button>
           ) : null}
           {chain.status === "active" || chain.status === "approved" ? (
@@ -147,6 +164,11 @@ export default function ChainDetailPage() {
           {chain.status === "paused" ? (
             <button type="button" onClick={() => void patchChain("resume")} className="rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white">
               Resume
+            </button>
+          ) : null}
+          {isCeo && chain.status !== "completed" && chain.status !== "cancelled" ? (
+            <button type="button" onClick={() => setCancelOpen(true)} className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900">
+              Cancel entire chain
             </button>
           ) : null}
         </div>
@@ -168,15 +190,22 @@ export default function ChainDetailPage() {
                   <span className="text-xs font-bold text-slate-400">#{s.step_order}</span>
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${stepBadge(s.status)}`}>{s.status}</span>
                 </div>
-                <p className="mt-1 font-medium text-slate-900">{s.task?.title ?? "—"}</p>
-                <p className="text-xs text-slate-500">Task: {s.task?.status ?? "—"}</p>
+                <p className="mt-1 font-medium text-slate-900">{s.task?.title ?? s.task_master?.title ?? "—"}</p>
+                {s.default_assignee_role ? (
+                  <p className="text-xs text-slate-500">Default role: {s.default_assignee_role}</p>
+                ) : null}
+                <p className="text-xs text-slate-500">Task: {s.task?.status ?? (s.task_id ? "—" : "not created")}</p>
                 {s.skip_reason ? <p className="mt-1 text-xs text-amber-800">Skip: {s.skip_reason}</p> : null}
                 {s.task_id ? (
                   <Link href={`/dashboard/tasks/${s.task_id}`} className="mt-2 inline-block text-xs font-medium text-[#2563EB]">
                     Open task
                   </Link>
                 ) : null}
-                {isCeo && chain.chain_type === "vertical" && s.status === "active" && s.task?.status === "blocked" ? (
+                {isCeo &&
+                chain.chain_type === "vertical" &&
+                s.status === "active" &&
+                s.task &&
+                ["pending", "acknowledged", "in_progress", "blocked", "waiting"].includes(s.task.status) ? (
                   <button type="button" onClick={() => setSkipStep(s)} className="mt-2 block text-xs font-semibold text-amber-800 underline">
                     Force-skip step
                   </button>
@@ -192,7 +221,7 @@ export default function ChainDetailPage() {
           chainId={id}
           stepId={skipStep.id}
           sessionId={session.id}
-          stepTitle={skipStep.task?.title ?? "Task"}
+          stepTitle={skipStep.task?.title ?? skipStep.task_master?.title ?? "Task"}
           onClose={() => setSkipStep(null)}
           onDone={() => {
             setSkipStep(null);
@@ -200,6 +229,96 @@ export default function ChainDetailPage() {
           }}
         />
       ) : null}
+
+      {cancelOpen && session ? (
+        <CancelChainSheet
+          chainId={id}
+          sessionId={session.id}
+          chainTitle={chain.title}
+          onClose={() => setCancelOpen(false)}
+          onDone={() => {
+            setCancelOpen(false);
+            void load();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function CancelChainSheet({
+  chainId,
+  sessionId,
+  chainTitle,
+  onClose,
+  onDone,
+}: {
+  chainId: string;
+  sessionId: string;
+  chainTitle: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const toast = useToast();
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/chains/${chainId}/cancel-chain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
+        body: JSON.stringify({ reason }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Failed");
+        toast.error(data.error ?? "Failed");
+        return;
+      }
+      toast.warning("Chain cancelled");
+      onDone();
+    } catch {
+      setError("Failed");
+      toast.error("Failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+      <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
+      <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-rose-800">Cancel chain</h2>
+        <p className="mt-1 text-sm text-slate-600">{chainTitle}</p>
+        <p className="mt-2 text-xs text-slate-500">Pending and waiting tasks in this chain will be cancelled. A reason is required.</p>
+        <form className="mt-4 space-y-3" onSubmit={submit}>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Reason</label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              required
+              rows={3}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-rose-500 focus:ring-2"
+            />
+          </div>
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={saving || !reason.trim()}
+            className="w-full rounded-lg bg-rose-700 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Cancelling…" : "Confirm cancel chain"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

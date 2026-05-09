@@ -231,11 +231,19 @@ CREATE TABLE public.tasks (
       'done',
       'confirmed',
       'closed',
-      'blocked'
+      'blocked',
+      'cancelled',
+      'waiting'
     )
   ),
   proof_photo_url text,
   reassign_reason text,
+  cancel_reason text,
+  cancelled_by uuid REFERENCES public.users (id),
+  cancelled_at timestamptz,
+  block_reason text,
+  blocked_at timestamptz,
+  from_chain boolean NOT NULL DEFAULT false,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -260,7 +268,9 @@ CREATE TABLE public.task_events (
       'confirmed',
       'closed',
       'blocked',
-      'force_skipped'
+      'force_skipped',
+      'cancelled',
+      'unblocked'
     )
   ),
   old_value text,
@@ -276,7 +286,7 @@ CREATE TABLE public.task_chains (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title text NOT NULL,
   chain_type text CHECK (chain_type IN ('vertical', 'horizontal')),
-  status text NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed', 'approved', 'active', 'paused', 'completed')),
+  status text NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed', 'approved', 'active', 'paused', 'completed', 'cancelled')),
   created_by uuid REFERENCES public.users (id),
   approved_by uuid REFERENCES public.users (id),
   created_at timestamptz NOT NULL DEFAULT now()
@@ -289,6 +299,8 @@ CREATE TABLE public.task_chain_steps (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   chain_id uuid NOT NULL REFERENCES public.task_chains (id) ON DELETE CASCADE,
   task_id uuid REFERENCES public.tasks (id) ON DELETE SET NULL,
+  task_master_id uuid REFERENCES public.task_master (id) ON DELETE SET NULL,
+  default_assignee_role text,
   step_order integer NOT NULL,
   status text NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'completed', 'skipped')),
   skip_reason text,
@@ -633,6 +645,32 @@ ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
 
 ALTER TABLE public.task_master
 ADD COLUMN IF NOT EXISTS psi_node_id uuid REFERENCES public.psi_nodes (id);
+
+ALTER TABLE public.tasks
+ADD COLUMN IF NOT EXISTS cancel_reason text;
+
+ALTER TABLE public.tasks
+ADD COLUMN IF NOT EXISTS cancelled_by uuid REFERENCES public.users (id);
+
+ALTER TABLE public.tasks
+ADD COLUMN IF NOT EXISTS cancelled_at timestamptz;
+
+ALTER TABLE public.tasks
+ADD COLUMN IF NOT EXISTS block_reason text;
+
+ALTER TABLE public.tasks
+ADD COLUMN IF NOT EXISTS blocked_at timestamptz;
+
+ALTER TABLE public.tasks
+ADD COLUMN IF NOT EXISTS from_chain boolean NOT NULL DEFAULT false;
+
+ALTER TABLE public.task_chain_steps
+ADD COLUMN IF NOT EXISTS task_master_id uuid REFERENCES public.task_master (id);
+
+ALTER TABLE public.task_chain_steps
+ADD COLUMN IF NOT EXISTS default_assignee_role text;
+
+-- Note: existing databases must widen CHECK constraints manually if upgrades fail, e.g. tasks.status and task_events.event_type.
 
 -- ============================================================================
 -- Done — schema ready for Phase 3 (role-specific RLS tightening)

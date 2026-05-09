@@ -1,3 +1,4 @@
+import { notifyNewTaskAssigned } from "@/lib/notifications/taskNotify";
 import type { createServiceClient } from "@/lib/supabase/service";
 
 type Supabase = ReturnType<typeof createServiceClient>;
@@ -15,6 +16,16 @@ export async function advanceVerticalChainFromStepOrder(supabase: Supabase, chai
   if (next?.id && next.task_id) {
     await supabase.from("task_chain_steps").update({ status: "active" }).eq("id", next.id);
     await supabase.from("task_chains").update({ status: "active" }).eq("id", chainId);
+    const nowIso = new Date().toISOString();
+    await supabase
+      .from("tasks")
+      .update({ status: "pending", updated_at: nowIso })
+      .eq("id", next.task_id as string)
+      .eq("status", "waiting");
+    const { data: tnext } = await supabase.from("tasks").select("title, assignee_id").eq("id", next.task_id as string).maybeSingle();
+    if (tnext?.assignee_id) {
+      await notifyNewTaskAssigned(supabase, tnext.assignee_id as string, (tnext.title as string) ?? "Task", next.task_id as string);
+    }
     return;
   }
 
@@ -35,8 +46,11 @@ export async function isVerticalChainTaskLocked(supabase: Supabase, taskId: stri
   if (!step) return false;
   const { data: chain } = await supabase.from("task_chains").select("chain_type, status").eq("id", step.chain_id).maybeSingle();
   if (!chain || chain.chain_type !== "vertical") return false;
+  if (chain.status === "cancelled") return false;
   if (!["active", "approved"].includes(chain.status as string)) return false;
-  return step.status !== "active";
+  if (step.status !== "active") return true;
+  const { data: task } = await supabase.from("tasks").select("status").eq("id", taskId).maybeSingle();
+  return task?.status === "waiting";
 }
 
 /** Combined guard for assignee actions (vertical ordering + paused chain). */
@@ -69,7 +83,7 @@ export async function pauseChainsForBlockedTask(
 
     await supabase.from("task_chains").update({ status: "paused" }).eq("id", chainId);
 
-    const { data: notifyUsers } = await supabase.from("users").select("id").in("role", ["ceo", "ops"]).eq("is_active", true);
+    const { data: notifyUsers } = await supabase.from("users").select("id").eq("role", "ceo").eq("is_active", true);
 
     const title = `Chain paused: ${ch.title as string}`;
     const body = `Task “${taskTitle}” was blocked.`;
@@ -94,7 +108,7 @@ export async function processVerticalChainAfterTaskClosed(supabase: Supabase, cl
   if (!step) return;
 
   const { data: chain } = await supabase.from("task_chains").select("chain_type, status").eq("id", step.chain_id).maybeSingle();
-  if (!chain || chain.chain_type !== "vertical") return;
+  if (!chain || chain.chain_type !== "vertical" || chain.status === "cancelled") return;
   if (!["active", "approved"].includes(chain.status as string)) return;
 
   if (step.status === "completed" || step.status === "skipped") return;
@@ -109,7 +123,7 @@ export async function processHorizontalChainAfterTaskClosed(supabase: Supabase, 
   if (!step) return;
 
   const { data: chain } = await supabase.from("task_chains").select("chain_type, status").eq("id", step.chain_id).maybeSingle();
-  if (!chain || chain.chain_type !== "horizontal") return;
+  if (!chain || chain.chain_type !== "horizontal" || chain.status === "cancelled") return;
   if (!["active", "approved"].includes(chain.status as string)) return;
 
   if (step.status === "completed" || step.status === "skipped") return;
@@ -125,7 +139,7 @@ export async function processHorizontalChainAfterTaskClosed(supabase: Supabase, 
       continue;
     }
     const { data: t } = await supabase.from("tasks").select("status").eq("id", st.task_id as string).maybeSingle();
-    if (t?.status === "closed") done += 1;
+    if (t?.status === "closed" || t?.status === "cancelled") done += 1;
   }
 
   if (done >= list.length && list.length > 0) {
@@ -138,4 +152,52 @@ export async function processHorizontalChainAfterTaskClosed(supabase: Supabase, 
 export async function processAllChainsAfterTaskClosed(supabase: Supabase, closedTaskId: string) {
   await processVerticalChainAfterTaskClosed(supabase, closedTaskId);
   await processHorizontalChainAfterTaskClosed(supabase, closedTaskId);
+}
+
+/** When a chain-linked task is cancelled, skip its step and advance / complete the chain. */
+export async function processChainAfterTaskCancelled(supabase: Supabase, taskId: string, reason: string): Promise<void> {
+  const { data: step } = await supabase
+    .from("task_chain_steps")
+    .select("id, chain_id, step_order, status")
+    .eq("task_id", taskId)
+    .maybeSingle();
+  if (!step) return;
+
+  const { data: chain } = await supabase.from("task_chains").select("chain_type, status").eq("id", step.chain_id).maybeSingle();
+  if (!chain || chain.status === "cancelled" || !["active", "approved", "paused"].includes(chain.status as string)) return;
+  if (step.status === "completed" || step.status === "skipped") return;
+
+  await supabase.from("task_chain_steps").update({ status: "skipped", skip_reason: reason }).eq("id", step.id);
+
+  if (chain.chain_type === "vertical") {
+    await advanceVerticalChainFromStepOrder(supabase, step.chain_id as string, step.step_order as number);
+    return;
+  }
+
+  const { data: steps } = await supabase.from("task_chain_steps").select("id, task_id, status").eq("chain_id", step.chain_id);
+  const list = (steps ?? []).filter((x) => x.task_id);
+  let done = 0;
+  for (const st of list) {
+    if (st.status === "skipped" || st.status === "completed") {
+      done += 1;
+      continue;
+    }
+    const { data: t } = await supabase.from("tasks").select("status").eq("id", st.task_id as string).maybeSingle();
+    if (t?.status === "closed" || t?.status === "cancelled") done += 1;
+  }
+  if (done >= list.length && list.length > 0) {
+    await supabase.from("task_chains").update({ status: "completed" }).eq("id", step.chain_id);
+  }
+}
+
+/** When a blocked task is unblocked by CEO/Ops, resume chains that were paused for that block. */
+export async function resumeChainsForUnblockedTask(supabase: Supabase, taskId: string): Promise<void> {
+  const { data: steps } = await supabase.from("task_chain_steps").select("chain_id").eq("task_id", taskId);
+  const chainIds = [...new Set((steps ?? []).map((s) => s.chain_id as string))];
+  for (const chainId of chainIds) {
+    const { data: ch } = await supabase.from("task_chains").select("status").eq("id", chainId).maybeSingle();
+    if (ch?.status === "paused") {
+      await supabase.from("task_chains").update({ status: "active" }).eq("id", chainId);
+    }
+  }
 }

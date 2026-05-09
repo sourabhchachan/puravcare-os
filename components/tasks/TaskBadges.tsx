@@ -13,6 +13,8 @@ const STATUS_STYLES: Record<string, string> = {
   confirmed: "bg-green-100 text-green-700",
   closed: "bg-gray-100 text-gray-600",
   blocked: "bg-red-100 text-red-700",
+  cancelled: "bg-slate-200 text-slate-600",
+  waiting: "bg-slate-100 text-slate-600",
 };
 
 export function PriorityBadge({ priority }: { priority: string }) {

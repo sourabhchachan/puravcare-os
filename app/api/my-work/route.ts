@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId } from "@/lib/api/actor";
 import { createServiceClient } from "@/lib/supabase/service";
+import { OPEN_ASSIGNMENT_STATUSES } from "@/lib/tasks/activeTaskFilters";
 
 type Tab = "assigned" | "raised" | "items_raised" | "items_assigned";
 
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
       .select("id, title, status, due_at, created_at")
       .eq("assignee_id", actorId!)
       .eq("is_active", true)
-      .neq("status", "closed")
+      .in("status", OPEN_ASSIGNMENT_STATUSES)
       .order("created_at", { ascending: false });
     if (error) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
     const rows = (tasks ?? []).map((t) => ({

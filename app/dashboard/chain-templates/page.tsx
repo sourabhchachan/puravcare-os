@@ -15,14 +15,13 @@ type ChainRow = {
   created_at: string;
 };
 
-type TaskOpt = { id: string; title: string; status: string };
-
 function chainStatusBadge(status: string) {
   if (status === "proposed") return "bg-yellow-100 text-yellow-900";
   if (status === "approved") return "bg-emerald-100 text-emerald-800";
   if (status === "active") return "bg-blue-100 text-blue-800";
   if (status === "paused") return "bg-red-100 text-red-800";
   if (status === "completed") return "bg-slate-200 text-slate-600";
+  if (status === "cancelled") return "bg-rose-100 text-rose-900";
   return "bg-slate-100 text-slate-700";
 }
 
@@ -74,15 +73,19 @@ export default function ChainTemplatesPage() {
       <div className="flex items-start justify-between gap-2">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Chain Templates</h1>
-          <p className="text-sm text-slate-500">Vertical (sequential) or horizontal (parallel) task chains</p>
+          <p className="text-sm text-slate-500">
+            Blueprints from task templates (CEO). Activate to create tasks and assign people.
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setSheetOpen(true)}
-          className="shrink-0 rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white"
-        >
-          New Chain
-        </button>
+        {session.role === "ceo" ? (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="shrink-0 rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white"
+          >
+            New template
+          </button>
+        ) : null}
       </div>
 
       {loadErr ? <p className="text-sm text-red-600">{loadErr}</p> : null}
@@ -126,6 +129,18 @@ export default function ChainTemplatesPage() {
   );
 }
 
+type TemplateOpt = { id: string; title: string; task_type: string };
+
+type StepDraft = { task_master_id: string; default_assignee_role: string };
+
+const ROLE_OPTIONS = [
+  { value: "", label: "Default role (none)" },
+  { value: "ceo", label: "CEO" },
+  { value: "ops", label: "Ops" },
+  { value: "staff", label: "Staff" },
+  { value: "vendor", label: "Vendor" },
+];
+
 function NewChainSheet({
   sessionId,
   onClose,
@@ -138,9 +153,10 @@ function NewChainSheet({
   const toast = useToast();
   const [title, setTitle] = useState("");
   const [chainType, setChainType] = useState<"vertical" | "horizontal">("vertical");
-  const [taskOptions, setTaskOptions] = useState<TaskOpt[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [pick, setPick] = useState("");
+  const [templateOptions, setTemplateOptions] = useState<TemplateOpt[]>([]);
+  const [steps, setSteps] = useState<StepDraft[]>([]);
+  const [pickMaster, setPickMaster] = useState("");
+  const [pickRole, setPickRole] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -148,11 +164,11 @@ function NewChainSheet({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/tasks?filter=all", { headers: { "x-actor-id": sessionId } });
-        const data = (await res.json()) as { tasks?: { id: string; title: string; status: string }[] };
+        const res = await fetch("/api/task-master", { headers: { "x-actor-id": sessionId } });
+        const data = (await res.json()) as { templates?: TemplateOpt[] };
         if (!res.ok || cancelled) return;
-        const open = (data.tasks ?? []).filter((t) => t.status !== "closed");
-        setTaskOptions(open.map((t) => ({ id: t.id, title: t.title, status: t.status })));
+        const list = data.templates ?? [];
+        setTemplateOptions(list.filter((t) => Boolean(t.id)));
       } catch {
         /* ignore */
       }
@@ -163,18 +179,18 @@ function NewChainSheet({
   }, [sessionId]);
 
   const availablePick = useMemo(() => {
-    const set = new Set(selectedIds);
-    return taskOptions.filter((t) => !set.has(t.id));
-  }, [taskOptions, selectedIds]);
+    return templateOptions;
+  }, [templateOptions]);
 
   function addStep() {
-    if (!pick) return;
-    setSelectedIds((prev) => [...prev, pick]);
-    setPick("");
+    if (!pickMaster) return;
+    setSteps((prev) => [...prev, { task_master_id: pickMaster, default_assignee_role: pickRole }]);
+    setPickMaster("");
+    setPickRole("");
   }
 
   function move(idx: number, dir: -1 | 1) {
-    setSelectedIds((prev) => {
+    setSteps((prev) => {
       const j = idx + dir;
       if (j < 0 || j >= prev.length) return prev;
       const next = [...prev];
@@ -184,7 +200,7 @@ function NewChainSheet({
   }
 
   function removeAt(idx: number) {
-    setSelectedIds((prev) => prev.filter((_, i) => i !== idx));
+    setSteps((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -195,7 +211,14 @@ function NewChainSheet({
       const res = await fetch("/api/chains", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
-        body: JSON.stringify({ title, chain_type: chainType, task_ids: selectedIds }),
+        body: JSON.stringify({
+          title,
+          chain_type: chainType,
+          steps: steps.map((s) => ({
+            task_master_id: s.task_master_id,
+            default_assignee_role: s.default_assignee_role || null,
+          })),
+        }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -218,7 +241,7 @@ function NewChainSheet({
       <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
       <div className="mx-auto max-h-[90vh] w-full max-w-[430px] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-lg">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
-        <h2 className="text-lg font-semibold text-[#2563EB]">New chain</h2>
+        <h2 className="text-lg font-semibold text-[#2563EB]">New chain template</h2>
         <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Title</label>
@@ -236,22 +259,35 @@ function NewChainSheet({
               onChange={(e) => setChainType(e.target.value as "vertical" | "horizontal")}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
             >
-              <option value="vertical">Vertical (sequential)</option>
+              <option value="vertical">Vertical (ordered steps)</option>
               <option value="horizontal">Horizontal (parallel)</option>
             </select>
           </div>
           <div>
-            <p className="mb-1 text-xs font-medium text-slate-600">Steps {chainType === "vertical" ? "(ordered)" : ""}</p>
-            <div className="flex gap-2">
+            <p className="mb-1 text-xs font-medium text-slate-600">
+              Steps from task templates {chainType === "vertical" ? "· drag order with ↑ ↓" : ""}
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
               <select
-                value={pick}
-                onChange={(e) => setPick(e.target.value)}
+                value={pickMaster}
+                onChange={(e) => setPickMaster(e.target.value)}
                 className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               >
-                <option value="">Select task…</option>
+                <option value="">Select template…</option>
                 {availablePick.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.title}
+                    {t.title} ({t.task_type})
+                  </option>
+                ))}
+              </select>
+              <select
+                value={pickRole}
+                onChange={(e) => setPickRole(e.target.value)}
+                className="rounded-lg border border-slate-300 px-2 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2 sm:w-40"
+              >
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r.value || "none"} value={r.value}>
+                    {r.label}
                   </option>
                 ))}
               </select>
@@ -260,13 +296,18 @@ function NewChainSheet({
               </button>
             </div>
             <ol className="mt-2 space-y-1 rounded-lg border border-slate-100 bg-slate-50 p-2">
-              {selectedIds.length === 0 ? <li className="text-xs text-slate-500">No steps yet.</li> : null}
-              {selectedIds.map((tid, idx) => {
-                const t = taskOptions.find((x) => x.id === tid);
+              {steps.length === 0 ? <li className="text-xs text-slate-500">No steps yet.</li> : null}
+              {steps.map((s, idx) => {
+                const t = templateOptions.find((x) => x.id === s.task_master_id);
                 return (
-                  <li key={`${tid}-${idx}`} className="flex items-center gap-2 rounded-md bg-white px-2 py-1.5 text-sm">
+                  <li key={`${s.task_master_id}-${idx}`} className="flex items-center gap-2 rounded-md bg-white px-2 py-1.5 text-sm">
                     <span className="w-5 shrink-0 text-center text-xs font-bold text-slate-400">{idx + 1}</span>
-                    <span className="min-w-0 flex-1 truncate text-slate-800">{t?.title ?? tid}</span>
+                    <span className="min-w-0 flex-1 truncate text-slate-800">
+                      {t?.title ?? s.task_master_id}
+                      {s.default_assignee_role ? (
+                        <span className="ml-1 text-xs text-slate-500">· {s.default_assignee_role}</span>
+                      ) : null}
+                    </span>
                     {chainType === "vertical" ? (
                       <span className="flex shrink-0 gap-0.5">
                         <button type="button" className="rounded px-1 text-xs text-slate-600" onClick={() => move(idx, -1)} aria-label="Move up">
@@ -288,10 +329,10 @@ function NewChainSheet({
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <button
             type="submit"
-            disabled={saving || !title.trim() || selectedIds.length === 0}
+            disabled={saving || !title.trim() || steps.length === 0}
             className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? "Saving…" : "Save template"}
           </button>
         </form>
       </div>
