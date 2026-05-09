@@ -12,6 +12,7 @@ export default function LoginPage() {
   const toast = useToast();
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -56,7 +57,7 @@ export default function LoginPage() {
         return;
       }
 
-      setStoredSession(payload.user);
+      setStoredSession(payload.user, keepSignedIn);
       const first = payload.user.full_name.trim().split(/\s+/)[0] ?? payload.user.full_name;
       toast.success(`Welcome back, ${first}`);
 
@@ -117,6 +118,17 @@ export default function LoginPage() {
               required
             />
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-600" htmlFor="keepSignedIn">
+            <input
+              id="keepSignedIn"
+              type="checkbox"
+              checked={keepSignedIn}
+              onChange={(e) => setKeepSignedIn(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+            />
+            Keep me signed in
+          </label>
 
           <button
             type="submit"
