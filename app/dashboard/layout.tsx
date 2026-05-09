@@ -30,7 +30,6 @@ const ceoLinks = [
   { href: "/dashboard/task-master", label: "Task Master" },
   { href: "/dashboard/item-master", label: "Item Master" },
   { href: "/dashboard/audit-log", label: "Audit Log" },
-  { href: "/dashboard/chain-templates", label: "Chain Templates" },
   { href: "/dashboard/vendors", label: "Vendors" },
 ] as const;
 
@@ -122,6 +121,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     onClick={() => setProfileOpen(false)}
                   >
                     PSI Framework
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/dashboard/chain-templates"
+                    className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                    onClick={() => setProfileOpen(false)}
+                  >
+                    Chain Templates
                   </Link>
                 </li>
               </ul>

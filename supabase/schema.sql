@@ -287,6 +287,7 @@ CREATE TABLE public.task_chain_steps (
   task_id uuid REFERENCES public.tasks (id) ON DELETE SET NULL,
   step_order integer NOT NULL,
   status text NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'completed', 'skipped')),
+  skip_reason text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 

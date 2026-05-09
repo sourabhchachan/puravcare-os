@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
+import {
+  isChainTaskProgressBlocked,
+  maybeActivateVerticalChainOnAcknowledge,
+  pauseChainsForBlockedTask,
+  processAllChainsAfterTaskClosed,
+} from "@/lib/chains/onTaskClose";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type TaskRow = {
@@ -157,6 +163,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     case "acknowledge": {
       if (t.assignee_id !== actorId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
       if (t.status !== "pending") return NextResponse.json({ error: "invalid_state" }, { status: 400 });
+      if (await isChainTaskProgressBlocked(supabase, id)) {
+        return NextResponse.json({ error: "chain_step_locked" }, { status: 403 });
+      }
       await supabase.from("tasks").update({ status: "acknowledged", updated_at: nowIso }).eq("id", id);
       await insertEvent(supabase, {
         task_id: id,
@@ -166,11 +175,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         new_value: "acknowledged",
         note: null,
       });
+      await maybeActivateVerticalChainOnAcknowledge(supabase, id);
       break;
     }
     case "mark_done": {
       if (t.assignee_id !== actorId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
       if (t.status !== "acknowledged") return NextResponse.json({ error: "invalid_state" }, { status: 400 });
+      if (await isChainTaskProgressBlocked(supabase, id)) {
+        return NextResponse.json({ error: "chain_step_locked" }, { status: 403 });
+      }
       if (t.proof_type === "tap") {
         await supabase.from("tasks").update({ status: "closed", updated_at: nowIso }).eq("id", id);
         await insertEvent(supabase, {
@@ -189,6 +202,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           new_value: "closed",
           note: "tap",
         });
+        await processAllChainsAfterTaskClosed(supabase, id);
       } else if (t.proof_type === "countersign") {
         await supabase.from("tasks").update({ status: "done", updated_at: nowIso }).eq("id", id);
         await insertEvent(supabase, {
@@ -208,6 +222,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (t.assignee_id !== actorId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
       if (t.proof_type !== "photo") return NextResponse.json({ error: "invalid_proof" }, { status: 400 });
       if (t.status !== "acknowledged") return NextResponse.json({ error: "invalid_state" }, { status: 400 });
+      if (await isChainTaskProgressBlocked(supabase, id)) {
+        return NextResponse.json({ error: "chain_step_locked" }, { status: 403 });
+      }
       const url = (body.proof_photo_url ?? "").trim();
       if (!url) return NextResponse.json({ error: "missing_url" }, { status: 400 });
       await supabase
@@ -254,6 +271,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         new_value: "closed",
         note: "confirmed",
       });
+      await processAllChainsAfterTaskClosed(supabase, id);
       break;
     }
     case "countersign": {
@@ -277,6 +295,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         new_value: "closed",
         note: null,
       });
+      await processAllChainsAfterTaskClosed(supabase, id);
       break;
     }
     case "reassign": {
@@ -338,6 +357,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         new_value: "blocked",
         note: body.note?.trim() || null,
       });
+      await pauseChainsForBlockedTask(supabase, id, t.title);
       break;
     }
     default:
