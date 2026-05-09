@@ -96,7 +96,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
 
     if (res.error) {
-      return NextResponse.json({ error: res.error, step_id: st.id }, { status: res.error === "insert_failed" ? 500 : 400 });
+      const status = res.error === "insert_failed" ? 500 : 400;
+      if (res.error === "insert_failed" && res.supabaseError) {
+        console.error("[activate chain] insert_failed", { step_id: st.id, ...res.supabaseError });
+        return NextResponse.json(
+          {
+            error: res.error,
+            step_id: st.id,
+            supabase_error: res.supabaseError,
+            detail: [res.supabaseError.message, res.supabaseError.code && `code=${res.supabaseError.code}`, res.supabaseError.hint, res.supabaseError.details]
+              .filter(Boolean)
+              .join(" | "),
+          },
+          { status },
+        );
+      }
+      return NextResponse.json({ error: res.error, step_id: st.id }, { status });
     }
 
     const taskId = res.task!.id as string;

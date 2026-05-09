@@ -15,6 +15,23 @@ type TemplateOpt = { id: string; title: string; task_type: "ops" | "clinical"; p
 
 const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly"] as const;
 
+type CreateTaskErrorBody = {
+  error?: string;
+  detail?: string;
+  supabase_error?: { message: string; code?: string; details?: string; hint?: string };
+};
+
+function userVisibleCreateError(body: CreateTaskErrorBody): string {
+  if (body.supabase_error) {
+    const se = body.supabase_error;
+    return [se.message, se.code && `Code: ${se.code}`, se.hint && `Hint: ${se.hint}`, se.details && `Details: ${se.details}`]
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (body.detail) return body.detail;
+  return body.error ?? "Could not create task";
+}
+
 export default function NewTaskPage() {
   const router = useRouter();
   const { session } = useAuth();
@@ -116,10 +133,12 @@ export default function NewTaskPage() {
           psi_node_id: psiNodeId || null,
         }),
       });
-      const body = (await res.json()) as { error?: string; task?: { id: string } };
+      const body = (await res.json()) as CreateTaskErrorBody & { task?: { id: string } };
       if (!res.ok) {
-        setError(body.error ?? "Could not create task");
-        toast.error(body.error ?? "Could not create task");
+        const msg = userVisibleCreateError(body);
+        setError(msg);
+        const toastMsg = body.detail ?? body.supabase_error?.message ?? body.error ?? "Could not create task";
+        toast.error(toastMsg);
         return;
       }
       toast.success("Task created");
@@ -308,7 +327,12 @@ export default function NewTaskPage() {
           </select>
         </div>
 
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-900">
+            <p className="text-xs font-semibold uppercase tracking-wide text-red-800">Error from server</p>
+            <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-snug">{error}</pre>
+          </div>
+        ) : null}
 
         <button
           type="submit"

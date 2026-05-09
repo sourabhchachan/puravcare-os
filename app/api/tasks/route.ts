@@ -2,8 +2,16 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, canCreateTasks, getActorId, getUserRole } from "@/lib/api/actor";
 import { createServiceClient } from "@/lib/supabase/service";
-import { insertTaskFromMaster } from "@/lib/tasks/insertTaskFromMaster";
 import { OPEN_ASSIGNMENT_STATUSES } from "@/lib/tasks/activeTaskFilters";
+import { insertTaskFromMaster, type SupabaseInsertErrorInfo } from "@/lib/tasks/insertTaskFromMaster";
+
+function formatSupabaseErrorForClient(e: SupabaseInsertErrorInfo) {
+  const parts = [e.message];
+  if (e.code) parts.push(`code=${e.code}`);
+  if (e.hint) parts.push(`hint: ${e.hint}`);
+  if (e.details) parts.push(`details: ${e.details}`);
+  return parts.join(" | ");
+}
 
 function attachAssigneeNames(
   tasks: Record<string, unknown>[],
@@ -188,7 +196,20 @@ export async function POST(request: Request) {
       invalid_patient: 400,
       insert_failed: 500,
     };
-    return NextResponse.json({ error: ins.error }, { status: map[ins.error] ?? 400 });
+    const status = map[ins.error] ?? 400;
+    if (ins.error === "insert_failed" && ins.supabaseError) {
+      console.error("[POST /api/tasks] insert_failed", ins.supabaseError);
+      return NextResponse.json(
+        {
+          error: ins.error,
+          supabase_error: ins.supabaseError,
+          /** Human-readable single line for toasts; full object above for debugging */
+          detail: formatSupabaseErrorForClient(ins.supabaseError),
+        },
+        { status },
+      );
+    }
+    return NextResponse.json({ error: ins.error }, { status });
   }
 
   return NextResponse.json({ task: ins.task });

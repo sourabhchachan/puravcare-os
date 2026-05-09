@@ -6,6 +6,18 @@ type Supabase = ReturnType<typeof createServiceClient>;
 
 const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly"] as const;
 
+/** Extra context when `tasks.insert` fails (RLS, CHECK constraint, FK, etc.). */
+export type SupabaseInsertErrorInfo = {
+  message: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+};
+
+export type InsertTaskFromMasterResult =
+  | { task: Record<string, unknown>; error?: undefined; supabaseError?: undefined }
+  | { error: string; task?: undefined; supabaseError?: SupabaseInsertErrorInfo };
+
 export type InsertTaskFromMasterParams = {
   actorId: string;
   taskMasterId: string;
@@ -22,24 +34,24 @@ export type InsertTaskFromMasterParams = {
   countersignUserId?: string | null;
 };
 
-export async function insertTaskFromMaster(supabase: Supabase, p: InsertTaskFromMasterParams) {
+export async function insertTaskFromMaster(supabase: Supabase, p: InsertTaskFromMasterParams): Promise<InsertTaskFromMasterResult> {
   const priority = p.priority ?? "normal";
   if (!["critical", "high", "normal", "low"].includes(priority)) {
-    return { error: "invalid_priority" as const };
+    return { error: "invalid_priority" };
   }
 
   const proofType = p.proofType ?? "tap";
   if (!["tap", "photo", "countersign"].includes(proofType)) {
-    return { error: "invalid_proof" as const };
+    return { error: "invalid_proof" };
   }
 
   const recurrence = p.recurrence ?? "one-time";
   if (!RECURRENCE.includes(recurrence as (typeof RECURRENCE)[number])) {
-    return { error: "invalid_recurrence" as const };
+    return { error: "invalid_recurrence" };
   }
 
   if (proofType === "countersign" && !p.countersignUserId) {
-    return { error: "missing_countersigner" as const };
+    return { error: "missing_countersigner" };
   }
 
   const { data: master, error: mErr } = await supabase
@@ -49,12 +61,12 @@ export async function insertTaskFromMaster(supabase: Supabase, p: InsertTaskFrom
     .maybeSingle();
 
   if (mErr || !master || !master.is_active) {
-    return { error: "invalid_task_master" as const };
+    return { error: "invalid_task_master" };
   }
 
   const taskType = taskTypeForInsertFromTemplate(master.task_type as string);
   if (taskType === "clinical" && !p.patientId) {
-    return { error: "missing_patient" as const };
+    return { error: "missing_patient" };
   }
 
   const { data: assignee } = await supabase
@@ -63,7 +75,7 @@ export async function insertTaskFromMaster(supabase: Supabase, p: InsertTaskFrom
     .eq("id", p.assigneeId)
     .eq("is_active", true)
     .maybeSingle();
-  if (!assignee) return { error: "invalid_assignee" as const };
+  if (!assignee) return { error: "invalid_assignee" };
 
   const resolvedPsi = p.psiNodeId ?? (master.psi_node_id as string | null) ?? null;
   if (resolvedPsi) {
@@ -75,12 +87,12 @@ export async function insertTaskFromMaster(supabase: Supabase, p: InsertTaskFrom
       .eq("type", "problem")
       .eq("is_active", true)
       .maybeSingle();
-    if (!psi) return { error: "invalid_psi" as const };
+    if (!psi) return { error: "invalid_psi" };
   }
 
   if (p.patientId) {
     const { data: pat } = await supabase.from("patients").select("id").eq("id", p.patientId).maybeSingle();
-    if (!pat) return { error: "invalid_patient" as const };
+    if (!pat) return { error: "invalid_patient" };
   }
 
   const title = (master.title as string).trim();
@@ -104,7 +116,20 @@ export async function insertTaskFromMaster(supabase: Supabase, p: InsertTaskFrom
 
   const { data: task, error } = await supabase.from("tasks").insert(insertRow).select("*").single();
   if (error || !task) {
-    return { error: "insert_failed" as const };
+    const supabaseError: SupabaseInsertErrorInfo = error
+      ? {
+          message: error.message,
+          code: error.code,
+          details: error.details ?? undefined,
+          hint: error.hint ?? undefined,
+        }
+      : { message: "Insert succeeded but no row was returned" };
+    console.error("[insertTaskFromMaster] tasks.insert failed", {
+      task_master_id: p.taskMasterId,
+      from_chain: p.fromChain,
+      ...supabaseError,
+    });
+    return { error: "insert_failed", supabaseError };
   }
 
   await supabase.from("task_events").insert({
