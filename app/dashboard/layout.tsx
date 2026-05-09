@@ -61,7 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[#F9FAFB] shadow-sm">
-        <header className="flex shrink-0 items-center justify-between gap-3 bg-gradient-to-r from-[#2563EB] to-[#3B82F6] px-4 py-3 text-white">
+        <header className="flex shrink-0 items-center justify-between gap-3 bg-blue-600 px-4 py-3 text-white shadow-md">
           <span className="min-w-0 shrink text-base font-semibold">PuravCare OS</span>
           <div className="flex shrink-0 items-center gap-2">
             <NotificationBell actorId={session.id} />
@@ -76,10 +76,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4">{children}</main>
+        <main className="flex-1 overflow-y-auto scroll-smooth px-4 pb-24 pt-4">{children}</main>
 
         <nav
-          className={`fixed bottom-0 left-1/2 z-40 grid w-full max-w-[430px] -translate-x-1/2 border-t border-slate-200 bg-white shadow-[0_-4px_12px_rgba(15,23,42,0.08)] ${gridColsClass(tabs.length)}`}
+          className={`fixed bottom-0 left-1/2 z-40 grid w-full max-w-[430px] -translate-x-1/2 border-t border-gray-100 bg-white shadow-lg ${gridColsClass(tabs.length)}`}
         >
           {tabs.map((tab) => {
             const active = isTabActive(pathname, tab.href);
