@@ -15,6 +15,15 @@ function greeting(name: string) {
   return `${part}, ${first}`;
 }
 
+function longDateLabel() {
+  return new Date().toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 function formatInr(n: number) {
   try {
     return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
@@ -63,26 +72,53 @@ function IconUnlinked({ className }: { className?: string }) {
   );
 }
 
+function IconPlus({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconUserPlus({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8M19 8v6M16 11h6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChevronRight({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function PulseCard({
   href,
   icon,
   iconTone,
   label,
   value,
+  valueClassName,
 }: {
   href: string;
   icon: React.ReactNode;
   iconTone: string;
   label: string;
   value: string | number;
+  valueClassName?: string;
 }) {
   return (
-    <Link href={href} className="pc-card block transition hover:-translate-y-0.5">
-      <div className="flex items-start justify-between gap-3">
-        <span className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${iconTone}`}>{icon}</span>
+    <Link href={href} className="flex items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-md transition hover:-translate-y-0.5">
+      <span className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${iconTone}`}>{icon}</span>
+      <div className="min-w-0 flex-1">
+        <p className={`text-4xl font-black leading-none ${valueClassName ?? "text-[#111827]"}`}>{value}</p>
+        <p className="mt-1 text-sm text-gray-500">{label}</p>
       </div>
-      <p className="mt-3 text-xs uppercase tracking-wide text-gray-500">{label}</p>
-      <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
+      <ChevronRight className="h-5 w-5 shrink-0 text-gray-300" />
     </Link>
   );
 }
@@ -104,6 +140,7 @@ export default function DashboardHomePage() {
     if (!session) return "Welcome";
     return greeting(session.full_name);
   }, [session]);
+  const dateLabel = useMemo(() => longDateLabel(), []);
 
   const loadPulse = useCallback(async () => {
     if (!session || session.role !== "ceo") return;
@@ -144,47 +181,69 @@ export default function DashboardHomePage() {
   const p = pulse;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
+    <div className="space-y-5">
+      <section className="-mx-4 rounded-b-3xl bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-5">
+        <h1 className="text-2xl font-bold text-white">{title}</h1>
+        <p className="mt-1 text-sm text-blue-200">{dateLabel}</p>
+      </section>
 
-      <div className="grid grid-cols-2 gap-3">
+      <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Hospital Overview</p>
+
+      <div className="space-y-3">
         <PulseCard
           href="/dashboard/tasks"
-          icon={<IconClipboard className="h-5 w-5 text-blue-600" />}
-          iconTone="bg-blue-100"
+          icon={<IconClipboard className="h-6 w-6 text-white" />}
+          iconTone="bg-gradient-to-br from-blue-500 to-blue-700"
           label="Total Tasks Today"
           value={p ? p.tasks_today : "—"}
         />
         <PulseCard
           href="/dashboard/tasks?filter=overdue"
-          icon={<IconAlert className="h-5 w-5 text-red-600" />}
-          iconTone="bg-red-100"
+          icon={<IconAlert className="h-6 w-6 text-white" />}
+          iconTone="bg-gradient-to-br from-red-500 to-red-700"
           label="Overdue"
           value={p ? p.overdue : "—"}
+          valueClassName={p && p.overdue > 0 ? "text-[#EF4444]" : "text-gray-400"}
         />
         <PulseCard
           href="/dashboard/patients"
-          icon={<IconUser className="h-5 w-5 text-green-600" />}
-          iconTone="bg-green-100"
+          icon={<IconUser className="h-6 w-6 text-white" />}
+          iconTone="bg-gradient-to-br from-green-500 to-green-700"
           label="Active Patients"
           value={p ? p.active_patients : "—"}
         />
         <PulseCard
           href="/dashboard/cashbook"
-          icon={<IconRupee className="text-base font-bold text-amber-600" />}
-          iconTone="bg-amber-100"
+          icon={<IconRupee className="text-xl font-bold text-white" />}
+          iconTone="bg-gradient-to-br from-amber-400 to-amber-600"
           label="Cash Balance"
           value={p ? formatInr(p.cash_balance) : "—"}
         />
-        <div className="col-span-2">
-          <PulseCard
-            href="/dashboard/tasks?filter=unlinked"
-            icon={<IconUnlinked className="h-5 w-5 text-orange-600" />}
-            iconTone="bg-orange-100"
-            label="Tasks Unlinked to PSI"
-            value={p ? p.tasks_unlinked_psi : "—"}
-          />
-        </div>
+        <PulseCard
+          href="/dashboard/tasks?filter=unlinked"
+          icon={<IconUnlinked className="h-6 w-6 text-white" />}
+          iconTone="bg-gradient-to-br from-orange-400 to-orange-600"
+          label="Tasks Unlinked to PSI"
+          value={p ? p.tasks_unlinked_psi : "—"}
+          valueClassName={p && p.tasks_unlinked_psi > 0 ? "text-[#F59E0B]" : "text-gray-400"}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 pt-1">
+        <Link
+          href="/dashboard/tasks/new"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-50 py-3 text-sm font-semibold text-blue-600"
+        >
+          <IconPlus className="h-4 w-4" />
+          New Task
+        </Link>
+        <Link
+          href="/dashboard/patients/new"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-50 py-3 text-sm font-semibold text-blue-600"
+        >
+          <IconUserPlus className="h-4 w-4" />
+          New Patient
+        </Link>
       </div>
     </div>
   );
