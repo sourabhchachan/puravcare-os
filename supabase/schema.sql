@@ -379,6 +379,9 @@ CREATE TABLE public.indents (
   quantity numeric(10, 2),
   unit text,
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dispatched', 'delivered', 'cancelled')),
+  cancel_reason text,
+  cancelled_by uuid REFERENCES public.users (id),
+  cancelled_at timestamptz,
   created_by uuid REFERENCES public.users (id),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -417,9 +420,12 @@ CREATE INDEX billable_items_status_idx ON public.billable_items (status);
 
 CREATE INDEX notifications_user_id_is_read_idx ON public.notifications (user_id, is_read);
 
+CREATE INDEX indents_vendor_id_idx ON public.indents (vendor_id);
+CREATE INDEX indents_status_idx ON public.indents (status);
+
 -- ----------------------------------------------------------------------------
 -- 6) updated_at triggers
---    Applied to: users, patients, items, tasks, cashbooks, cash_entries
+--    Applied to: users, patients, items, tasks, cashbooks, cash_entries, indents
 --    (billable_items has no updated_at column per schema)
 -- ----------------------------------------------------------------------------
 CREATE TRIGGER users_set_updated_at
@@ -449,6 +455,11 @@ CREATE TRIGGER cashbooks_set_updated_at
 
 CREATE TRIGGER cash_entries_set_updated_at
   BEFORE UPDATE ON public.cash_entries
+  FOR EACH ROW
+  EXECUTE PROCEDURE public.set_updated_at();
+
+CREATE TRIGGER indents_set_updated_at
+  BEFORE UPDATE ON public.indents
   FOR EACH ROW
   EXECUTE PROCEDURE public.set_updated_at();
 

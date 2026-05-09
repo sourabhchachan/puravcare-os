@@ -30,7 +30,6 @@ const ceoLinks = [
   { href: "/dashboard/task-master", label: "Task Master" },
   { href: "/dashboard/item-master", label: "Item Master" },
   { href: "/dashboard/audit-log", label: "Audit Log" },
-  { href: "/dashboard/vendors", label: "Vendors" },
 ] as const;
 
 function gridColsClass(count: number) {
@@ -132,6 +131,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     Chain Templates
                   </Link>
                 </li>
+                {(session.role === "ceo" || session.role === "ops") && (
+                  <li>
+                    <Link
+                      href="/dashboard/vendors"
+                      className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      Vendors
+                    </Link>
+                  </li>
+                )}
               </ul>
             </div>
 
