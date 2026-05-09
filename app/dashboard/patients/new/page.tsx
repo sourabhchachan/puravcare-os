@@ -28,14 +28,23 @@ export default function NewPatientPage() {
   const [saving, setSaving] = useState(false);
 
   const disableSubmit = useMemo(
-    () => saving || !fullName.trim() || (admissionType === "ipd" && !bedNumber.trim()),
-    [saving, fullName, admissionType, bedNumber],
+    () =>
+      saving ||
+      !fullName.trim() ||
+      (admissionType === "ipd" && (!bedNumber.trim() || !ipdNumber.trim())),
+    [saving, fullName, admissionType, bedNumber, ipdNumber],
   );
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!session) return;
     setError("");
+    if (admissionType === "ipd" && !ipdNumber.trim()) {
+      const msg = "IPD number is required for IPD admission";
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
     setSaving(true);
     try {
       const response = await fetch("/api/patients", {
@@ -151,10 +160,11 @@ export default function NewPatientPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">IPD Number (optional)</label>
+              <label className="mb-1 block text-xs font-medium text-slate-600">IPD Number</label>
               <input
                 value={ipdNumber}
                 onChange={(e) => setIpdNumber(e.target.value)}
+                required
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
               />
             </div>
