@@ -22,6 +22,7 @@ export default function NewPatientPage() {
   const [phone, setPhone] = useState("");
   const [admissionType, setAdmissionType] = useState<"opd" | "ipd">("opd");
   const [bedNumber, setBedNumber] = useState("");
+  const [ipdNumber, setIpdNumber] = useState("");
   const [admissionDate, setAdmissionDate] = useState(toLocalInputValue(new Date()));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -50,6 +51,7 @@ export default function NewPatientPage() {
           phone: phone.trim() || null,
           admission_type: admissionType,
           bed_number: admissionType === "ipd" ? bedNumber.trim() : null,
+          ipd_number: admissionType === "ipd" ? ipdNumber.trim() || null : null,
           admission_date: new Date(admissionDate).toISOString(),
         }),
       });
@@ -138,14 +140,24 @@ export default function NewPatientPage() {
         </div>
 
         {admissionType === "ipd" ? (
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Bed Number</label>
-            <input
-              value={bedNumber}
-              onChange={(e) => setBedNumber(e.target.value)}
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
-            />
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Bed Number</label>
+              <input
+                value={bedNumber}
+                onChange={(e) => setBedNumber(e.target.value)}
+                required
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">IPD Number (optional)</label>
+              <input
+                value={ipdNumber}
+                onChange={(e) => setIpdNumber(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              />
+            </div>
           </div>
         ) : null}
 

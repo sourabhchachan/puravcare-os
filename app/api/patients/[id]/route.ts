@@ -18,7 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const { data: patient, error } = await supabase
     .from("patients")
-    .select("id, uhid, full_name, age, gender, phone, admission_type, bed_number, admission_date, discharge_date, status")
+    .select("id, uhid, full_name, age, gender, phone, admission_type, bed_number, ipd_number, admission_date, discharge_date, status")
     .eq("id", id)
     .maybeSingle();
   if (error || !patient) return NextResponse.json({ error: "not_found" }, { status: 404 });

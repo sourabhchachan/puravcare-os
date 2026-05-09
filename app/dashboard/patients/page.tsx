@@ -13,6 +13,7 @@ type PatientRow = {
   age: number | null;
   admission_type: "opd" | "ipd";
   bed_number: string | null;
+  ipd_number: string | null;
   admission_date: string;
   status: "active" | "discharged";
 };
@@ -126,6 +127,7 @@ export default function PatientsPage() {
                 </div>
                 <div className="mt-2 text-xs text-slate-600">
                   {p.admission_type === "ipd" ? <>Bed: {p.bed_number || "—"} · </> : null}
+                  {p.admission_type === "ipd" ? <>IPD: {p.ipd_number || "—"} · </> : null}
                   Admitted: {fmtDate(p.admission_date)}
                 </div>
               </Link>

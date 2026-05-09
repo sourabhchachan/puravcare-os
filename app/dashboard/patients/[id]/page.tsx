@@ -17,6 +17,7 @@ type PatientRow = {
   gender: string | null;
   phone: string | null;
   bed_number: string | null;
+  ipd_number: string | null;
   admission_type: "opd" | "ipd";
   admission_date: string;
   discharge_date: string | null;
@@ -154,6 +155,7 @@ export default function PatientDetailPage() {
           <p>Phone: {patient.phone ?? "—"}</p>
           <p>Type: {patient.admission_type.toUpperCase()}</p>
           <p>Bed: {patient.bed_number ?? "—"}</p>
+          <p>IPD Number: {patient.admission_type === "ipd" ? patient.ipd_number ?? "—" : "—"}</p>
           <p>Admission: {formatDate(patient.admission_date)}</p>
           <p className="col-span-2">Discharge: {formatDate(patient.discharge_date)}</p>
         </div>

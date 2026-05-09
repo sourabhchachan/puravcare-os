@@ -134,6 +134,7 @@ CREATE TABLE public.patients (
   phone text,
   admission_type text CHECK (admission_type IN ('opd', 'ipd')),
   bed_number text,
+  ipd_number text,
   admission_date timestamptz NOT NULL DEFAULT now(),
   discharge_date timestamptz,
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'discharged')),

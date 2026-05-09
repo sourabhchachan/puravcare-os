@@ -10,6 +10,7 @@ type PostBody = {
   phone?: string | null;
   admission_type?: string | null;
   bed_number?: string | null;
+  ipd_number?: string | null;
   admission_date?: string | null;
 };
 
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("patients")
-    .select("id, uhid, full_name, age, gender, phone, admission_type, bed_number, admission_date, discharge_date, status")
+    .select("id, uhid, full_name, age, gender, phone, admission_type, bed_number, ipd_number, admission_date, discharge_date, status")
     .eq("status", status)
     .order("admission_date", { ascending: false });
 
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
   }
 
   const bedNumber = (body.bed_number ?? "").trim();
+  const ipdNumber = (body.ipd_number ?? "").trim();
   if (admissionType === "ipd" && !bedNumber) {
     return NextResponse.json({ error: "missing_bed_number" }, { status: 400 });
   }
@@ -114,11 +116,12 @@ export async function POST(request: Request) {
       phone: (body.phone ?? "").trim() || null,
       admission_type: admissionType,
       bed_number: admissionType === "ipd" ? bedNumber : null,
+      ipd_number: admissionType === "ipd" ? ipdNumber || null : null,
       admission_date: admissionDate.toISOString(),
       status: "active",
       created_by: actorId!,
     })
-    .select("id, uhid, full_name, age, gender, phone, admission_type, bed_number, admission_date, discharge_date, status")
+    .select("id, uhid, full_name, age, gender, phone, admission_type, bed_number, ipd_number, admission_date, discharge_date, status")
     .single();
 
   if (error || !data) return NextResponse.json({ error: "insert_failed" }, { status: 500 });
