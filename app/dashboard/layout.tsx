@@ -36,7 +36,8 @@ const ceoLinks = [
 function gridColsClass(count: number) {
   if (count <= 2) return "grid-cols-2";
   if (count === 3) return "grid-cols-3";
-  return "grid-cols-4";
+  if (count === 4) return "grid-cols-4";
+  return "grid-cols-5";
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -153,6 +154,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     onClick={() => setProfileOpen(false)}
                   >
                     My work
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/dashboard/notices"
+                    className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                    onClick={() => setProfileOpen(false)}
+                  >
+                    Notices
                   </Link>
                 </li>
               </ul>

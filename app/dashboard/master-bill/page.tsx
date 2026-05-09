@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { downloadExcelResponse } from "@/lib/dashboard/downloadExcel";
 
-type ByPatient = { patient_id: string; uhid: string; patient_name: string; total_bill: number };
+type ByPatient = { patient_id: string; uhid: string; patient_name: string; status: string; total_bill: number };
 type ByItem = { item_id: string; item_name: string; total_quantity: number; total_revenue: number };
-type ByVendor = { vendor_id: string; vendor_name: string; total_quantity: number; total_revenue: number };
+type ByVendor = { vendor_id: string; vendor_name: string; total_items: number; total_revenue: number };
 type Tab = "patient" | "item" | "vendor";
 type Preset = "this_month" | "last_month" | "this_year" | "custom";
 
@@ -88,13 +89,7 @@ export default function MasterBillPage() {
       toast.error("Export failed");
       return;
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `master-bill-${tab}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    await downloadExcelResponse(res, `master-bill-${tab}.xlsx`);
     toast.success("Export downloaded");
   }
 
@@ -165,6 +160,7 @@ export default function MasterBillPage() {
             <li key={r.patient_id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-xs text-slate-500">{r.uhid}</p>
               <p className="font-semibold text-slate-900">{r.patient_name}</p>
+              <p className="text-xs capitalize text-slate-600">Status: {r.status}</p>
               <p className="text-sm font-semibold text-slate-800">{formatInr(Number(r.total_bill))}</p>
             </li>
           ))}
@@ -190,7 +186,7 @@ export default function MasterBillPage() {
           {byVendor.map((r) => (
             <li key={r.vendor_id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="font-semibold text-slate-900">{r.vendor_name}</p>
-              <p className="text-xs text-slate-600">Qty: {r.total_quantity}</p>
+              <p className="text-xs text-slate-600">Items: {r.total_items}</p>
               <p className="text-sm font-semibold text-slate-800">{formatInr(Number(r.total_revenue))}</p>
             </li>
           ))}

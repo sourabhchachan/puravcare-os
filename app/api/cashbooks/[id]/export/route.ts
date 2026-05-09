@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 
 import { assertActiveUser, getActorId } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
+import { fileSuffixFromDates, slugFilePart } from "@/lib/dashboard/reportRange";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -19,8 +20,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "missing_range" }, { status: 400 });
   }
 
-  const startMs = new Date(start).getTime();
-  const endMs = new Date(end).getTime();
+  const startD = new Date(start);
+  const endD = new Date(end);
+  const startMs = startD.getTime();
+  const endMs = endD.getTime();
   if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
     return NextResponse.json({ error: "invalid_range" }, { status: 400 });
   }
@@ -74,7 +77,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const out = e.entry_type === "out" ? amt : 0;
     running += inn - out;
     return {
-      Date: new Date(e.entry_date as string).toLocaleDateString(),
+      Date: new Date(e.entry_date as string).toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
       Description: (e.description as string) ?? "",
       IN: inn || "",
       OUT: out || "",
@@ -89,12 +95,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
   const body = new Uint8Array(buf);
 
-  const safeName = String(book.name).replace(/[^\w\-]+/g, "_").slice(0, 40);
+  const slug = slugFilePart(String(book.name), 32);
+  const suffix = fileSuffixFromDates(startD, endD);
+  const filename = `cashbook-${slug}-${suffix}.xlsx`;
   return new NextResponse(body, {
     status: 200,
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${safeName}-cashbook.xlsx"`,
+      "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });
 }

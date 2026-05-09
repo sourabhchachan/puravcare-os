@@ -10,6 +10,7 @@ import {
 } from "@/lib/chains/onTaskClose";
 import { notifyNewTaskAssigned, notifyTaskBlockedRequester, notifyTaskCompletedRequester } from "@/lib/notifications/taskNotify";
 import { createServiceClient } from "@/lib/supabase/service";
+import { canViewTask as userCanViewTask } from "@/lib/tasks/canViewTask";
 
 type TaskRow = {
   id: string;
@@ -51,15 +52,6 @@ async function insertEvent(
   });
 }
 
-function canViewTask(task: TaskRow, actorId: string, role: string | null) {
-  if (role === "ceo") return true;
-  return (
-    task.assignee_id === actorId ||
-    task.created_by === actorId ||
-    (task.countersign_user_id && task.countersign_user_id === actorId)
-  );
-}
-
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const actorId = getActorId(request);
@@ -72,7 +64,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (error || !task) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   const role = await getUserRole(actorId);
-  if (!canViewTask(task as TaskRow, actorId!, role)) {
+  if (!userCanViewTask(task as TaskRow, actorId!, role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -151,7 +143,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const role = await getUserRole(actorId);
   const t = task as TaskRow;
-  if (!canViewTask(t, actorId, role)) {
+  if (!userCanViewTask(t, actorId, role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

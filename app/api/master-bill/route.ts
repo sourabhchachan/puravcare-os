@@ -1,30 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId } from "@/lib/api/actor";
+import { rangeFromPreset } from "@/lib/dashboard/reportRange";
 import { createServiceClient } from "@/lib/supabase/service";
-
-function rangeFromPreset(preset: string | null, start?: string | null, end?: string | null) {
-  if (preset === "custom" && start && end) {
-    return { start: new Date(start), end: new Date(end) };
-  }
-  const now = new Date();
-  if (preset === "last_month") {
-    return {
-      start: new Date(now.getFullYear(), now.getMonth() - 1, 1),
-      end: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999),
-    };
-  }
-  if (preset === "this_year") {
-    return {
-      start: new Date(now.getFullYear(), 0, 1),
-      end: new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999),
-    };
-  }
-  return {
-    start: new Date(now.getFullYear(), now.getMonth(), 1),
-    end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
-  };
-}
 
 export async function GET(request: Request) {
   const actorId = getActorId(request);
@@ -56,7 +34,7 @@ export async function GET(request: Request) {
 
   const [{ data: patients }, { data: items }] = await Promise.all([
     patientIds.length
-      ? supabase.from("patients").select("id, uhid, full_name").in("id", patientIds)
+      ? supabase.from("patients").select("id, uhid, full_name, status").in("id", patientIds)
       : Promise.resolve({ data: [] }),
     itemIds.length ? supabase.from("items").select("id, name, vendor_id").in("id", itemIds) : Promise.resolve({ data: [] }),
   ]);
@@ -66,9 +44,9 @@ export async function GET(request: Request) {
     ? await supabase.from("vendors").select("id, name").in("id", itemVendorIds)
     : { data: [] as { id: string; name: string }[] };
 
-  const patientMap = new Map<string, { uhid: string; full_name: string }>();
-  for (const p of (patients ?? []) as { id: string; uhid: string; full_name: string }[]) {
-    patientMap.set(p.id, { uhid: p.uhid, full_name: p.full_name });
+  const patientMap = new Map<string, { uhid: string; full_name: string; status: string }>();
+  for (const p of (patients ?? []) as { id: string; uhid: string; full_name: string; status: string }[]) {
+    patientMap.set(p.id, { uhid: p.uhid, full_name: p.full_name, status: p.status });
   }
   const itemMap = new Map<string, { name: string; vendor_id: string | null }>();
   for (const i of (items ?? []) as { id: string; name: string; vendor_id: string | null }[]) {
@@ -79,9 +57,15 @@ export async function GET(request: Request) {
     vendorMap.set(v.id, v.name);
   }
 
-  const byPatient = new Map<string, { patient_id: string; uhid: string; patient_name: string; total_bill: number }>();
+  const byPatient = new Map<
+    string,
+    { patient_id: string; uhid: string; patient_name: string; status: string; total_bill: number }
+  >();
   const byItem = new Map<string, { item_id: string; item_name: string; total_quantity: number; total_revenue: number }>();
-  const byVendor = new Map<string, { vendor_id: string; vendor_name: string; total_quantity: number; total_revenue: number }>();
+  const byVendor = new Map<
+    string,
+    { vendor_id: string; vendor_name: string; total_items: number; total_revenue: number }
+  >();
 
   for (const r of rows) {
     const total = Number(r.total_price ?? 0);
@@ -94,6 +78,7 @@ export async function GET(request: Request) {
       patient_id: pKey,
       uhid: patient?.uhid ?? "—",
       patient_name: patient?.full_name ?? "Unknown",
+      status: patient?.status ?? "—",
       total_bill: 0,
     };
     currentP.total_bill += total;
@@ -115,10 +100,10 @@ export async function GET(request: Request) {
       const currentV = byVendor.get(vendorId) ?? {
         vendor_id: vendorId,
         vendor_name: vendorMap.get(vendorId) ?? "Unknown",
-        total_quantity: 0,
+        total_items: 0,
         total_revenue: 0,
       };
-      currentV.total_quantity += quantity;
+      currentV.total_items += 1;
       currentV.total_revenue += total;
       byVendor.set(vendorId, currentV);
     }

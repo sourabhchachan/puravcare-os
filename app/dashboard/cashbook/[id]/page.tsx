@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 
 import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { downloadExcelResponse } from "@/lib/dashboard/downloadExcel";
 
 type EntryRow = {
   id: string;
@@ -126,13 +127,7 @@ export default function CashbookDetailPage() {
       toast.error("Export failed");
       return;
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "cashbook.xlsx";
-    a.click();
-    URL.revokeObjectURL(url);
+    await downloadExcelResponse(res, "cashbook.xlsx");
     toast.success("Export downloaded");
     setExportOpen(false);
   }

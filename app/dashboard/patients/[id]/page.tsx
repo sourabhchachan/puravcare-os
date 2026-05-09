@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 
 import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { downloadExcelResponse } from "@/lib/dashboard/downloadExcel";
 
 type ItemOpt = { id: string; name: string; price: number };
 type PatientRow = {
@@ -63,6 +64,7 @@ export default function PatientDetailPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<BillRow | null>(null);
   const [dischargeOpen, setDischargeOpen] = useState(false);
+  const [billExportOpen, setBillExportOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!session || !patientId) return;
@@ -158,17 +160,26 @@ export default function PatientDetailPage() {
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-800">Running Bill</h2>
-          {patient.status === "active" ? (
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setAddOpen(true)}
-              className="rounded-lg bg-[#2563EB] px-3 py-1.5 text-xs font-semibold text-white"
+              onClick={() => setBillExportOpen(true)}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#2563EB]"
             >
-              Add Item
+              Export Excel
             </button>
-          ) : null}
+            {patient.status === "active" ? (
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="rounded-lg bg-[#2563EB] px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                Add Item
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <ul className="space-y-2">
@@ -244,6 +255,15 @@ export default function PatientDetailPage() {
             setCancelTarget(null);
             void load();
           }}
+        />
+      ) : null}
+
+      {billExportOpen && session ? (
+        <PatientBillExportSheet
+          patientId={patient.id}
+          sessionId={session.id}
+          onClose={() => setBillExportOpen(false)}
+          onExported={() => toast.success("Export downloaded")}
         />
       ) : null}
 
@@ -533,6 +553,78 @@ function DischargeSheet({
           className="mt-4 w-full rounded-lg bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
         >
           {saving ? "Discharging..." : "Confirm Discharge"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ymdPat(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function PatientBillExportSheet({
+  patientId,
+  sessionId,
+  onClose,
+  onExported,
+}: {
+  patientId: string;
+  sessionId: string;
+  onClose: () => void;
+  onExported: () => void;
+}) {
+  const toast = useToast();
+  const [from, setFrom] = useState(ymdPat(new Date()));
+  const [to, setTo] = useState(ymdPat(new Date()));
+
+  async function download(preset: "this_month" | "last_month" | "this_year" | "custom", customFrom?: string, customTo?: string) {
+    const params = new URLSearchParams({ preset });
+    if (preset === "custom" && customFrom && customTo) {
+      params.set("start", new Date(customFrom + "T00:00:00").toISOString());
+      params.set("end", new Date(customTo + "T23:59:59").toISOString());
+    }
+    const res = await fetch(`/api/patients/${patientId}/bill-export?${params}`, { headers: { "x-actor-id": sessionId } });
+    if (!res.ok) {
+      toast.error("Export failed");
+      return;
+    }
+    await downloadExcelResponse(res, "patient-bill.xlsx");
+    onExported();
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+      <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
+      <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-[#2563EB]">Export running bill</h2>
+        <div className="mt-3 flex flex-col gap-2">
+          <button type="button" className="rounded-lg border border-slate-200 py-2 text-sm" onClick={() => void download("this_month")}>
+            This month
+          </button>
+          <button type="button" className="rounded-lg border border-slate-200 py-2 text-sm" onClick={() => void download("last_month")}>
+            Last month
+          </button>
+          <button type="button" className="rounded-lg border border-slate-200 py-2 text-sm" onClick={() => void download("this_year")}>
+            This year
+          </button>
+        </div>
+        <p className="mt-4 text-xs font-semibold text-slate-600">Custom range</p>
+        <div className="mt-2 flex gap-2">
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="flex-1 rounded border px-2 py-1 text-sm" />
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="flex-1 rounded border px-2 py-1 text-sm" />
+        </div>
+        <button
+          type="button"
+          className="mt-3 w-full rounded-lg bg-[#2563EB] py-2 text-sm font-semibold text-white"
+          onClick={() => void download("custom", from, to)}
+        >
+          Download custom
         </button>
       </div>
     </div>

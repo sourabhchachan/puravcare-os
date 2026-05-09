@@ -6,6 +6,7 @@
 -- ----------------------------------------------------------------------------
 -- 0) Reset — drop in dependency order (children before parents)
 -- ----------------------------------------------------------------------------
+DROP TABLE IF EXISTS public.notices CASCADE;
 DROP TABLE IF EXISTS public.notifications CASCADE;
 DROP TABLE IF EXISTS public.indents CASCADE;
 DROP TABLE IF EXISTS public.billable_items CASCADE;
@@ -420,6 +421,8 @@ CREATE INDEX billable_items_status_idx ON public.billable_items (status);
 
 CREATE INDEX notifications_user_id_is_read_idx ON public.notifications (user_id, is_read);
 
+CREATE INDEX notices_created_at_idx ON public.notices (created_at DESC);
+
 CREATE INDEX indents_vendor_id_idx ON public.indents (vendor_id);
 CREATE INDEX indents_status_idx ON public.indents (status);
 
@@ -484,6 +487,7 @@ ALTER TABLE public.cash_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.billable_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.indents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notices ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow all for authenticated users"
   ON public.users
@@ -606,6 +610,13 @@ CREATE POLICY "Allow all for authenticated users"
 
 CREATE POLICY "Allow all for authenticated users"
   ON public.notifications
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Allow all for authenticated users"
+  ON public.notices
   FOR ALL
   TO authenticated
   USING (true)

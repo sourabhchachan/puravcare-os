@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
+import { downloadExcelResponse } from "@/lib/dashboard/downloadExcel";
+
 import { priorityBorderClass, PriorityBadge, StatusBadge } from "@/components/tasks/TaskBadges";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -69,6 +71,7 @@ export default function TaskDetailPage() {
   const [reassignOpen, setReassignOpen] = useState(false);
   const [newAssignee, setNewAssignee] = useState("");
   const [reassignReason, setReassignReason] = useState("");
+  const [activityExportOpen, setActivityExportOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!session || !id) return;
@@ -377,7 +380,16 @@ export default function TaskDetailPage() {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-900">Activity</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-slate-900">Activity</h2>
+          <button
+            type="button"
+            onClick={() => setActivityExportOpen(true)}
+            className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-[#2563EB]"
+          >
+            Export Excel
+          </button>
+        </div>
         <ul className="mt-3 space-y-3">
           {events.map((e) => (
             <li key={e.id} className="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
@@ -396,6 +408,17 @@ export default function TaskDetailPage() {
           {events.length === 0 ? <p className="text-sm text-slate-500">No events yet.</p> : null}
         </ul>
       </div>
+
+      {activityExportOpen && session ? (
+        <TaskActivityExportSheet
+          taskId={id}
+          sessionId={session.id}
+          onClose={() => setActivityExportOpen(false)}
+          onDone={async () => {
+            toast.success("Export downloaded");
+          }}
+        />
+      ) : null}
 
       {reassignOpen ? (
         <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
@@ -450,6 +473,78 @@ export default function TaskDetailPage() {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function ymdTask(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function TaskActivityExportSheet({
+  taskId,
+  sessionId,
+  onClose,
+  onDone,
+}: {
+  taskId: string;
+  sessionId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const toast = useToast();
+  const [from, setFrom] = useState(ymdTask(new Date()));
+  const [to, setTo] = useState(ymdTask(new Date()));
+
+  async function download(preset: "this_month" | "last_month" | "this_year" | "custom", customFrom?: string, customTo?: string) {
+    const params = new URLSearchParams({ preset });
+    if (preset === "custom" && customFrom && customTo) {
+      params.set("start", new Date(customFrom + "T00:00:00").toISOString());
+      params.set("end", new Date(customTo + "T23:59:59").toISOString());
+    }
+    const res = await fetch(`/api/tasks/${taskId}/events/export?${params}`, { headers: { "x-actor-id": sessionId } });
+    if (!res.ok) {
+      toast.error("Export failed");
+      return;
+    }
+    await downloadExcelResponse(res, "task-activity.xlsx");
+    onDone();
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+      <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
+      <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-[#2563EB]">Export activity</h2>
+        <div className="mt-3 flex flex-col gap-2">
+          <button type="button" className="rounded-lg border border-slate-200 py-2 text-sm" onClick={() => void download("this_month")}>
+            This month
+          </button>
+          <button type="button" className="rounded-lg border border-slate-200 py-2 text-sm" onClick={() => void download("last_month")}>
+            Last month
+          </button>
+          <button type="button" className="rounded-lg border border-slate-200 py-2 text-sm" onClick={() => void download("this_year")}>
+            This year
+          </button>
+        </div>
+        <p className="mt-4 text-xs font-semibold text-slate-600">Custom range</p>
+        <div className="mt-2 flex gap-2">
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="flex-1 rounded border px-2 py-1 text-sm" />
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="flex-1 rounded border px-2 py-1 text-sm" />
+        </div>
+        <button
+          type="button"
+          className="mt-3 w-full rounded-lg bg-[#2563EB] py-2 text-sm font-semibold text-white"
+          onClick={() => void download("custom", from, to)}
+        >
+          Download custom
+        </button>
+      </div>
     </div>
   );
 }
