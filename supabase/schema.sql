@@ -361,6 +361,10 @@ CREATE TABLE public.billable_items (
   billed_by uuid REFERENCES public.users (id),
   billed_at timestamptz NOT NULL DEFAULT now(),
   note text,
+  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'cancelled')),
+  cancel_reason text,
+  cancelled_by uuid REFERENCES public.users (id),
+  cancelled_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -408,6 +412,7 @@ CREATE INDEX cash_entries_cashbook_id_idx ON public.cash_entries (cashbook_id);
 CREATE INDEX cash_entries_entry_date_idx ON public.cash_entries (entry_date);
 
 CREATE INDEX billable_items_patient_id_idx ON public.billable_items (patient_id);
+CREATE INDEX billable_items_status_idx ON public.billable_items (status);
 
 CREATE INDEX notifications_user_id_is_read_idx ON public.notifications (user_id, is_read);
 

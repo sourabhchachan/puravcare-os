@@ -35,6 +35,16 @@ export function IconBill({ className }: IconProps) {
   );
 }
 
+export function IconPatients({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="9" cy="8" r="3" />
+      <circle cx="17" cy="10" r="2.5" />
+      <path d="M3 20a6 6 0 0112 0M13.5 20a4.5 4.5 0 019 0" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function IconVendors({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
