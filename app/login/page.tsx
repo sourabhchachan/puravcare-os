@@ -3,11 +3,13 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { getStoredSession, setStoredSession } from "@/lib/auth/storage";
 import type { SessionUser } from "@/lib/auth/types";
 
 export default function LoginPage() {
   const router = useRouter();
+  const toast = useToast();
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -40,18 +42,23 @@ export default function LoginPage() {
       if (!res.ok) {
         if (payload.error === "deactivated") {
           setError("Your account has been deactivated. Contact admin.");
+          toast.error("Account deactivated");
         } else {
           setError("Invalid login ID or password");
+          toast.error("Invalid login ID or password");
         }
         return;
       }
 
       if (!payload.user) {
         setError("Invalid login ID or password");
+        toast.error("Invalid login ID or password");
         return;
       }
 
       setStoredSession(payload.user);
+      const first = payload.user.full_name.trim().split(/\s+/)[0] ?? payload.user.full_name;
+      toast.success(`Welcome back, ${first}`);
 
       if (payload.user.must_change_password) {
         router.replace("/change-password");
@@ -61,6 +68,7 @@ export default function LoginPage() {
       router.replace("/dashboard");
     } catch {
       setError("Something went wrong. Please try again.");
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

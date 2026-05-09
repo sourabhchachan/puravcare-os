@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type Indent = {
@@ -31,6 +32,7 @@ function formatDt(iso: string) {
 
 export default function VendorPendingPage() {
   const { session, loading } = useAuth();
+  const toast = useToast();
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [indents, setIndents] = useState<Indent[]>([]);
   const [err, setErr] = useState("");
@@ -59,10 +61,11 @@ export default function VendorPendingPage() {
       setIndents(data.indents ?? []);
     } catch {
       setErr("Could not load");
+      toast.error("Could not load");
     } finally {
       setLoadingData(false);
     }
-  }, [session]);
+  }, [session, toast]);
 
   useEffect(() => {
     void load();
@@ -75,7 +78,12 @@ export default function VendorPendingPage() {
       headers: { "Content-Type": "application/json", "x-actor-id": session.id },
       body: JSON.stringify({ action: "dispatch" }),
     });
-    if (!res.ok) return;
+    const body = (await res.json()) as { error?: string };
+    if (!res.ok) {
+      toast.error(body.error ?? "Update failed");
+      return;
+    }
+    toast.success("Marked dispatched");
     void load();
   }
 

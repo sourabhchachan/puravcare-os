@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type Permissions = {
@@ -21,6 +22,7 @@ type UserRow = {
 
 export default function UsersManagementPage() {
   const { session, loading: authLoading } = useAuth();
+  const toast = useToast();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -36,16 +38,18 @@ export default function UsersManagementPage() {
       const res = await fetch("/api/users", { headers: { "x-actor-id": session.id } });
       if (!res.ok) {
         setError("Could not load users.");
+        toast.error("Could not load users.");
         return;
       }
       const data = (await res.json()) as { users?: UserRow[] };
       setUsers(data.users ?? []);
     } catch {
       setError("Could not load users.");
+      toast.error("Could not load users.");
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [session, toast]);
 
   useEffect(() => {
     void load();
@@ -138,6 +142,7 @@ export default function UsersManagementPage() {
           onClose={() => setAddOpen(false)}
           onSaved={() => {
             setAddOpen(false);
+            toast.success("User created");
             void load();
           }}
         />
@@ -151,6 +156,7 @@ export default function UsersManagementPage() {
           onClose={() => setEditUser(null)}
           onSaved={() => {
             setEditUser(null);
+            toast.success("User updated");
             void load();
           }}
         />
@@ -168,6 +174,7 @@ function AddUserSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"ceo" | "ops" | "staff" | "vendor">("staff");
   const [loginId, setLoginId] = useState("");
@@ -194,11 +201,19 @@ function AddUserSheet({
         if (body.error === "duplicate_login") setError("Login ID already in use.");
         else if (body.error === "too_many_ceos") setError("Maximum of 5 active CEO users allowed.");
         else setError("Could not create user.");
+        toast.error(
+          body.error === "duplicate_login"
+            ? "Login ID already in use."
+            : body.error === "too_many_ceos"
+              ? "Maximum of 5 active CEO users allowed."
+              : "Could not create user.",
+        );
         return;
       }
       onSaved();
     } catch {
       setError("Could not create user.");
+      toast.error("Could not create user.");
     } finally {
       setSaving(false);
     }
@@ -271,6 +286,7 @@ function EditUserSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [fullName, setFullName] = useState(user.full_name);
   const [loginId, setLoginId] = useState(user.login_id);
   const [role, setRole] = useState(user.role);
@@ -310,11 +326,21 @@ function EditUserSheet({
         else if (body.error === "cannot_deactivate_self") setError("You cannot deactivate yourself.");
         else if (body.error === "too_many_ceos") setError("Maximum of 5 active CEO users allowed.");
         else setError("Could not save changes.");
+        toast.error(
+          body.error === "duplicate_login"
+            ? "Login ID already in use."
+            : body.error === "cannot_deactivate_self"
+              ? "You cannot deactivate yourself."
+              : body.error === "too_many_ceos"
+                ? "Maximum of 5 active CEO users allowed."
+                : "Could not save changes.",
+        );
         return;
       }
       onSaved();
     } catch {
       setError("Could not save changes.");
+      toast.error("Could not save changes.");
     } finally {
       setSaving(false);
     }

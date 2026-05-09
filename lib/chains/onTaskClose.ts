@@ -71,8 +71,8 @@ export async function pauseChainsForBlockedTask(
 
     const { data: notifyUsers } = await supabase.from("users").select("id").in("role", ["ceo", "ops"]).eq("is_active", true);
 
-    const title = "Chain paused";
-    const body = `Task “${taskTitle}” was blocked. Chain “${ch.title}” is paused.`;
+    const title = `Chain paused: ${ch.title as string}`;
+    const body = `Task “${taskTitle}” was blocked.`;
     const rows = (notifyUsers ?? []).map((u) => ({
       user_id: u.id as string,
       type: "chain_paused",

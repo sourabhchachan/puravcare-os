@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type CashbookCard = {
@@ -36,6 +37,7 @@ function balanceClass(n: number) {
 
 export default function CashbookListPage() {
   const { session, loading: authLoading } = useAuth();
+  const toast = useToast();
   const [cashbooks, setCashbooks] = useState<CashbookCard[]>([]);
   const [isCeo, setIsCeo] = useState(false);
   const [users, setUsers] = useState<UserOpt[]>([]);
@@ -52,6 +54,7 @@ export default function CashbookListPage() {
       const data = (await res.json()) as { cashbooks?: CashbookCard[]; is_ceo?: boolean; users?: UserOpt[]; error?: string };
       if (!res.ok) {
         setError(data.error ?? "Could not load cashbooks");
+        toast.error(data.error ?? "Could not load cashbooks");
         return;
       }
       setCashbooks(data.cashbooks ?? []);
@@ -59,10 +62,11 @@ export default function CashbookListPage() {
       setUsers(data.users ?? []);
     } catch {
       setError("Could not load cashbooks");
+      toast.error("Could not load cashbooks");
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [session, toast]);
 
   useEffect(() => {
     void load();
@@ -119,6 +123,7 @@ export default function CashbookListPage() {
           onClose={() => setSheetOpen(false)}
           onSaved={() => {
             setSheetOpen(false);
+            toast.success("Cashbook created");
             void load();
           }}
         />
@@ -138,6 +143,7 @@ function CreateCashbookSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [extras, setExtras] = useState<ExtraMember[]>([]);
@@ -185,11 +191,13 @@ function CreateCashbookSheet({
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(data.error ?? "Could not create");
+        toast.error(data.error ?? "Could not create");
         return;
       }
       onSaved();
     } catch {
       setError("Could not create");
+      toast.error("Could not create");
     } finally {
       setSaving(false);
     }

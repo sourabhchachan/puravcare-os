@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type Chain = {
@@ -44,6 +45,7 @@ export default function ChainDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { session, loading } = useAuth();
+  const toast = useToast();
   const [chain, setChain] = useState<Chain | null>(null);
   const [steps, setSteps] = useState<StepRow[]>([]);
   const [progress, setProgress] = useState({ closed: 0, total: 0 });
@@ -63,6 +65,7 @@ export default function ChainDetailPage() {
       const data = (await res.json()) as { chain?: Chain; steps?: StepRow[]; progress?: { closed: number; total: number }; error?: string };
       if (!res.ok) {
         setErr(data.error ?? "Not found");
+        toast.error(data.error ?? "Not found");
         setChain(null);
         return;
       }
@@ -71,11 +74,12 @@ export default function ChainDetailPage() {
       setProgress(data.progress ?? { closed: 0, total: 0 });
     } catch {
       setErr("Could not load");
+      toast.error("Could not load");
       setChain(null);
     } finally {
       setLoadingData(false);
     }
-  }, [session, id]);
+  }, [session, id, toast]);
 
   useEffect(() => {
     void load();
@@ -88,7 +92,14 @@ export default function ChainDetailPage() {
       headers: { "Content-Type": "application/json", "x-actor-id": session.id },
       body: JSON.stringify({ action }),
     });
-    if (!res.ok) return;
+    const body = (await res.json()) as { error?: string };
+    if (!res.ok) {
+      toast.error(body.error ?? "Update failed");
+      return;
+    }
+    if (action === "approve") toast.success("Chain approved");
+    else if (action === "pause") toast.warning("Chain paused");
+    else toast.success("Chain resumed");
     void load();
   }
 
@@ -208,6 +219,7 @@ function ForceSkipSheet({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const toast = useToast();
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -225,11 +237,14 @@ function ForceSkipSheet({
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(data.error ?? "Failed");
+        toast.error(data.error ?? "Failed");
         return;
       }
+      toast.warning("Step skipped");
       onDone();
     } catch {
       setError("Failed");
+      toast.error("Failed");
     } finally {
       setSaving(false);
     }

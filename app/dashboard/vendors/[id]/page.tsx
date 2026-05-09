@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { VendorFormSheet } from "@/components/vendors/VendorFormSheet";
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type VendorRow = {
@@ -31,6 +32,7 @@ export default function VendorDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { session, loading } = useAuth();
+  const toast = useToast();
   const [vendor, setVendor] = useState<VendorRow | null>(null);
   const [indents, setIndents] = useState<IndentPreview[]>([]);
   const [items, setItems] = useState<ItemRow[]>([]);
@@ -57,6 +59,7 @@ export default function VendorDetailPage() {
       };
       if (!res.ok) {
         setErr(data.error ?? "Not found");
+        toast.error(data.error ?? "Not found");
         setVendor(null);
         return;
       }
@@ -66,11 +69,12 @@ export default function VendorDetailPage() {
       setLinkedLabel(data.linked_user_label ?? null);
     } catch {
       setErr("Could not load");
+      toast.error("Could not load");
       setVendor(null);
     } finally {
       setLoadingData(false);
     }
-  }, [session, id]);
+  }, [session, id, toast]);
 
   useEffect(() => {
     void load();
@@ -168,7 +172,10 @@ export default function VendorDetailPage() {
           initial={vendor}
           isCeo
           onClose={() => setEditOpen(false)}
-          onSaved={() => void load()}
+          onSaved={() => {
+            toast.success("Vendor updated");
+            void load();
+          }}
         />
       ) : null}
     </div>

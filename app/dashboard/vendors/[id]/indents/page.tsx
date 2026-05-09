@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type Indent = {
@@ -36,6 +37,7 @@ export default function VendorIndentsPage() {
   const params = useParams();
   const vendorId = params.id as string;
   const { session, loading } = useAuth();
+  const toast = useToast();
   const [indents, setIndents] = useState<Indent[]>([]);
   const [err, setErr] = useState("");
   const [loadingData, setLoadingData] = useState(true);
@@ -53,15 +55,17 @@ export default function VendorIndentsPage() {
       const data = (await res.json()) as { indents?: Indent[]; error?: string };
       if (!res.ok) {
         setErr(data.error ?? "Could not load");
+        toast.error(data.error ?? "Could not load");
         return;
       }
       setIndents(data.indents ?? []);
     } catch {
       setErr("Could not load");
+      toast.error("Could not load");
     } finally {
       setLoadingData(false);
     }
-  }, [session, vendorId]);
+  }, [session, vendorId, toast]);
 
   useEffect(() => {
     void load();
@@ -74,7 +78,12 @@ export default function VendorIndentsPage() {
       headers: { "Content-Type": "application/json", "x-actor-id": session.id },
       body: JSON.stringify({ action }),
     });
-    if (!res.ok) return;
+    const body = (await res.json()) as { error?: string };
+    if (!res.ok) {
+      toast.error(body.error ?? "Update failed");
+      return;
+    }
+    toast.success(action === "dispatch" ? "Marked dispatched" : "Marked delivered");
     void load();
   }
 
@@ -147,7 +156,15 @@ export default function VendorIndentsPage() {
       </ul>
 
       {sheet ? (
-        <NewIndentSheet sessionId={session.id} vendorId={vendorId} onClose={() => setSheet(false)} onSaved={() => void load()} />
+        <NewIndentSheet
+          sessionId={session.id}
+          vendorId={vendorId}
+          onClose={() => setSheet(false)}
+          onSaved={() => {
+            toast.success("Indent created");
+            void load();
+          }}
+        />
       ) : null}
 
       {cancelId ? (
@@ -157,6 +174,7 @@ export default function VendorIndentsPage() {
           onClose={() => setCancelId(null)}
           onDone={() => {
             setCancelId(null);
+            toast.warning("Indent cancelled");
             void load();
           }}
         />
@@ -176,6 +194,7 @@ function NewIndentSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [desc, setDesc] = useState("");
   const [qty, setQty] = useState("");
   const [unit, setUnit] = useState("");
@@ -199,12 +218,14 @@ function NewIndentSheet({
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(data.error ?? "Failed");
+        toast.error(data.error ?? "Failed");
         return;
       }
       onSaved();
       onClose();
     } catch {
       setError("Failed");
+      toast.error("Failed");
     } finally {
       setSaving(false);
     }
@@ -271,6 +292,7 @@ function CancelIndentSheet({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const toast = useToast();
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -288,11 +310,13 @@ function CancelIndentSheet({
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(data.error ?? "Failed");
+        toast.error(data.error ?? "Failed");
         return;
       }
       onDone();
     } catch {
       setError("Failed");
+      toast.error("Failed");
     } finally {
       setSaving(false);
     }

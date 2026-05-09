@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 function greeting(name: string) {
@@ -12,6 +13,14 @@ function greeting(name: string) {
   else if (hour >= 17) part = "Good evening";
   const first = name.trim().split(/\s+/)[0] ?? name;
   return `${part}, ${first}`;
+}
+
+function formatInr(n: number) {
+  try {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+  } catch {
+    return String(n);
+  }
 }
 
 function IconClipboard({ className }: { className?: string }) {
@@ -54,100 +63,111 @@ function IconUnlinked({ className }: { className?: string }) {
   );
 }
 
-const STAT_CARDS = [
-  {
-    label: "Total Tasks Today",
-    value: "0",
-    borderClass: "border-l-[#3B82F6]",
-    bgClass: "bg-blue-50",
-    iconClass: "absolute right-3 top-3 h-7 w-7 shrink-0 text-[#3B82F6]",
-    Icon: IconClipboard,
-  },
-  {
-    label: "Overdue",
-    value: "0",
-    borderClass: "border-l-[#EF4444]",
-    bgClass: "bg-red-50",
-    iconClass: "absolute right-3 top-3 h-7 w-7 shrink-0 text-[#EF4444]",
-    Icon: IconAlert,
-  },
-  {
-    label: "Active Patients",
-    value: "0",
-    borderClass: "border-l-[#10B981]",
-    bgClass: "bg-green-50",
-    iconClass: "absolute right-3 top-3 h-7 w-7 shrink-0 text-[#10B981]",
-    Icon: IconUser,
-  },
-  {
-    label: "Cash Balance",
-    value: "0",
-    borderClass: "border-l-[#F59E0B]",
-    bgClass: "bg-amber-50",
-    iconClass: "absolute right-3 top-2.5 text-2xl font-extrabold leading-none text-[#F59E0B]",
-    Icon: IconRupee,
-  },
-] as const;
+type Pulse = {
+  tasks_today: number;
+  overdue: number;
+  active_patients: number;
+  cash_balance: number;
+  tasks_unlinked_psi: number;
+};
 
 export default function DashboardHomePage() {
   const { session, loading } = useAuth();
-  const [unlinkedCount, setUnlinkedCount] = useState<number | null>(null);
+  const toast = useToast();
+  const [pulse, setPulse] = useState<Pulse | null>(null);
 
   const title = useMemo(() => {
     if (!session) return "Welcome";
     return greeting(session.full_name);
   }, [session]);
 
-  const loadUnlinked = useCallback(async () => {
+  const loadPulse = useCallback(async () => {
     if (!session || session.role !== "ceo") return;
     try {
-      const res = await fetch("/api/tasks?filter=unlinked&count_only=1", { headers: { "x-actor-id": session.id } });
-      const data = (await res.json()) as { count?: number };
-      if (!res.ok) return;
-      setUnlinkedCount(typeof data.count === "number" ? data.count : 0);
+      const res = await fetch("/api/dashboard/pulse", { headers: { "x-actor-id": session.id } });
+      const data = (await res.json()) as Pulse & { error?: string };
+      if (!res.ok) {
+        toast.error("Could not load pulse metrics");
+        return;
+      }
+      setPulse({
+        tasks_today: data.tasks_today,
+        overdue: data.overdue,
+        active_patients: data.active_patients,
+        cash_balance: data.cash_balance,
+        tasks_unlinked_psi: data.tasks_unlinked_psi,
+      });
     } catch {
-      setUnlinkedCount(null);
+      toast.error("Could not load pulse metrics");
     }
-  }, [session]);
+  }, [session, toast]);
 
   useEffect(() => {
-    void loadUnlinked();
-  }, [loadUnlinked]);
+    void loadPulse();
+  }, [loadPulse]);
 
   if (loading || !session) return null;
+
+  if (session.role !== "ceo") {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
+        <p className="text-sm text-slate-600">Use the bottom navigation and profile menu for your workspace.</p>
+      </div>
+    );
+  }
+
+  const p = pulse;
 
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
 
       <div className="grid grid-cols-2 gap-3">
-        {STAT_CARDS.map((card) => {
-          const Icon = card.Icon;
-          return (
-            <div
-              key={card.label}
-              className={`relative overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 ${card.borderClass} ${card.bgClass} p-4 shadow-sm`}
-            >
-              <Icon className={card.iconClass} />
-              <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">
-                {card.label}
-              </p>
-              <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{card.value}</p>
-            </div>
-          );
-        })}
-        {session.role === "ceo" ? (
-          <Link
-            href="/dashboard/tasks?filter=unlinked"
-            className="relative block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#F59E0B] bg-amber-50 p-4 shadow-sm transition hover:opacity-95"
-          >
-            <IconUnlinked className="absolute right-3 top-3 h-7 w-7 shrink-0 text-[#F59E0B]" />
-            <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">
-              Tasks Unlinked to PSI
-            </p>
-            <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{unlinkedCount ?? "—"}</p>
-          </Link>
-        ) : null}
+        <Link
+          href="/dashboard/tasks"
+          className="relative block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#3B82F6] bg-blue-50 p-4 shadow-sm transition hover:opacity-95"
+        >
+          <IconClipboard className="absolute right-3 top-3 h-7 w-7 shrink-0 text-[#3B82F6]" />
+          <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">Total Tasks Today</p>
+          <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{p ? p.tasks_today : "—"}</p>
+        </Link>
+
+        <Link
+          href="/dashboard/tasks?filter=overdue"
+          className="relative block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#EF4444] bg-red-50 p-4 shadow-sm transition hover:opacity-95"
+        >
+          <IconAlert className="absolute right-3 top-3 h-7 w-7 shrink-0 text-[#EF4444]" />
+          <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">Overdue</p>
+          <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{p ? p.overdue : "—"}</p>
+        </Link>
+
+        <Link
+          href="/dashboard/patients"
+          className="relative block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#10B981] bg-green-50 p-4 shadow-sm transition hover:opacity-95"
+        >
+          <IconUser className="absolute right-3 top-3 h-7 w-7 shrink-0 text-[#10B981]" />
+          <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">Active Patients</p>
+          <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{p ? p.active_patients : "—"}</p>
+        </Link>
+
+        <Link
+          href="/dashboard/cashbook"
+          className="relative block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#F59E0B] bg-amber-50 p-4 shadow-sm transition hover:opacity-95"
+        >
+          <IconRupee className="absolute right-3 top-2.5 text-2xl font-extrabold leading-none text-[#F59E0B]" />
+          <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">Cash Balance</p>
+          <p className="mt-3 text-lg font-bold tabular-nums leading-tight text-slate-900">{p ? formatInr(p.cash_balance) : "—"}</p>
+        </Link>
+
+        <Link
+          href="/dashboard/tasks?filter=unlinked"
+          className="relative col-span-2 block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#F59E0B] bg-amber-50 p-4 shadow-sm transition hover:opacity-95"
+        >
+          <IconUnlinked className="absolute right-3 top-3 h-7 w-7 shrink-0 text-[#F59E0B]" />
+          <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">Tasks Unlinked to PSI</p>
+          <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{p ? p.tasks_unlinked_psi : "—"}</p>
+        </Link>
       </div>
     </div>
   );

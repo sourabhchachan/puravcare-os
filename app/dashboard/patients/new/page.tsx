@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 function toLocalInputValue(date: Date) {
@@ -14,6 +15,7 @@ function toLocalInputValue(date: Date) {
 export default function NewPatientPage() {
   const router = useRouter();
   const { session } = useAuth();
+  const toast = useToast();
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
@@ -54,11 +56,14 @@ export default function NewPatientPage() {
       const body = (await response.json()) as { error?: string; patient?: { id: string } };
       if (!response.ok || !body.patient?.id) {
         setError(body.error ?? "Could not admit patient");
+        toast.error(body.error ?? "Could not admit patient");
         return;
       }
+      toast.success("Patient admitted");
       router.replace(`/dashboard/patients/${body.patient.id}`);
     } catch {
       setError("Could not admit patient");
+      toast.error("Could not admit patient");
     } finally {
       setSaving(false);
     }

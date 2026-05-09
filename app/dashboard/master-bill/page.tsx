@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type ByPatient = { patient_id: string; uhid: string; patient_name: string; total_bill: number };
@@ -23,6 +24,7 @@ function ymd(d: Date) {
 
 export default function MasterBillPage() {
   const { session } = useAuth();
+  const toast = useToast();
   const [tab, setTab] = useState<Tab>("patient");
   const [preset, setPreset] = useState<Preset>("this_month");
   const [from, setFrom] = useState(ymd(new Date()));
@@ -56,6 +58,7 @@ export default function MasterBillPage() {
       };
       if (!res.ok) {
         setError(body.error ?? "Could not load master bill");
+        toast.error(body.error ?? "Could not load master bill");
         return;
       }
       setByPatient(body.by_patient ?? []);
@@ -63,10 +66,11 @@ export default function MasterBillPage() {
       setByVendor(body.by_vendor ?? []);
     } catch {
       setError("Could not load master bill");
+      toast.error("Could not load master bill");
     } finally {
       setLoading(false);
     }
-  }, [session, queryString]);
+  }, [session, queryString, toast]);
 
   useEffect(() => {
     void load();
@@ -80,7 +84,10 @@ export default function MasterBillPage() {
       params.set("end", new Date(to + "T23:59:59").toISOString());
     }
     const res = await fetch(`/api/master-bill/export?${params.toString()}`, { headers: { "x-actor-id": session.id } });
-    if (!res.ok) return;
+    if (!res.ok) {
+      toast.error("Export failed");
+      return;
+    }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -88,6 +95,7 @@ export default function MasterBillPage() {
     a.download = `master-bill-${tab}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
+    toast.success("Export downloaded");
   }
 
   if (!session) return null;

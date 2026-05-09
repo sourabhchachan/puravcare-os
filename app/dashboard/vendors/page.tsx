@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { VendorFormSheet } from "@/components/vendors/VendorFormSheet";
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type VendorRow = {
@@ -16,6 +17,7 @@ type VendorRow = {
 
 export default function VendorsPage() {
   const { session, loading } = useAuth();
+  const toast = useToast();
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const [vendors, setVendors] = useState<VendorRow[]>([]);
@@ -38,15 +40,17 @@ export default function VendorsPage() {
       const data = (await res.json()) as { vendors?: VendorRow[]; error?: string };
       if (!res.ok) {
         setErr(data.error ?? "Could not load");
+        toast.error(data.error ?? "Could not load");
         return;
       }
       setVendors(data.vendors ?? []);
     } catch {
       setErr("Could not load");
+      toast.error("Could not load");
     } finally {
       setLoadingData(false);
     }
-  }, [session, debounced]);
+  }, [session, debounced, toast]);
 
   useEffect(() => {
     void load();
@@ -120,7 +124,10 @@ export default function VendorsPage() {
           mode="create"
           isCeo
           onClose={() => setSheet(false)}
-          onSaved={() => void load()}
+          onSaved={() => {
+            toast.success("Vendor created");
+            void load();
+          }}
         />
       ) : null}
     </div>

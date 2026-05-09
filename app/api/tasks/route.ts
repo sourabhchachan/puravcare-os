@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { assertActiveUser, canCreateTasks, getActorId, getUserRole } from "@/lib/api/actor";
+import { notifyNewTaskAssigned } from "@/lib/notifications/taskNotify";
 import { createServiceClient } from "@/lib/supabase/service";
 import { taskTypeForInsertFromTemplate } from "@/lib/task/taskTypes";
 
@@ -222,6 +223,10 @@ export async function POST(request: Request) {
     new_value: "pending",
     note: null,
   });
+
+  if (body.assignee_id !== actorId) {
+    await notifyNewTaskAssigned(supabase, body.assignee_id, title, task.id as string);
+  }
 
   return NextResponse.json({ task });
 }

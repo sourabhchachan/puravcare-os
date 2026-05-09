@@ -2,6 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+import type { ToastApi } from "@/components/ui/ToastProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type PsiTab = "all" | "proposed" | "approved" | "rejected";
@@ -80,6 +82,7 @@ function filterChildren(nodes: TreeNode[], tab: PsiTab): TreeNode[] {
 
 export default function PsiPage() {
   const { session, loading } = useAuth();
+  const toast = useToast();
   const [nodes, setNodes] = useState<PsiNode[]>([]);
   const [tab, setTab] = useState<PsiTab>("all");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -98,15 +101,17 @@ export default function PsiPage() {
       const data = (await res.json()) as { nodes?: PsiNode[]; error?: string };
       if (!res.ok) {
         setError(data.error ?? "Could not load PSI");
+        toast.error(data.error ?? "Could not load PSI");
         return;
       }
       setNodes(data.nodes ?? []);
     } catch {
       setError("Could not load PSI");
+      toast.error("Could not load PSI");
     } finally {
       setLoadingData(false);
     }
-  }, [session]);
+  }, [session, toast]);
 
   useEffect(() => {
     void load();
@@ -180,6 +185,7 @@ export default function PsiPage() {
             expanded={expanded}
             onToggle={toggleExpand}
             session={session}
+            toast={toast}
             onProposeSolution={() => setSheet({ kind: "solution", parentId: n.id })}
             onProposeIndicator={(solutionId) => setSheet({ kind: "indicator", parentId: solutionId })}
             onApproved={() => void load()}
@@ -210,6 +216,7 @@ function PsiTreeNode({
   expanded,
   onToggle,
   session,
+  toast,
   onProposeSolution,
   onProposeIndicator,
   onApproved,
@@ -219,6 +226,7 @@ function PsiTreeNode({
   expanded: Record<string, boolean>;
   onToggle: (id: string) => void;
   session: { id: string; role: string };
+  toast: ToastApi;
   onProposeSolution: () => void;
   onProposeIndicator: (solutionId: string) => void;
   onApproved: () => void;
@@ -269,14 +277,14 @@ function PsiTreeNode({
               <button
                 type="button"
                 className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-semibold text-white"
-                onClick={() => void approveNode(session.id, node.id, "approve", onApproved)}
+                onClick={() => void approveNode(session.id, node.id, "approve", onApproved, toast)}
               >
                 Approve
               </button>
               <button
                 type="button"
                 className="rounded-lg bg-red-600 px-2 py-1 text-xs font-semibold text-white"
-                onClick={() => void approveNode(session.id, node.id, "reject", onApproved)}
+                onClick={() => void approveNode(session.id, node.id, "reject", onApproved, toast)}
               >
                 Reject
               </button>
@@ -294,6 +302,7 @@ function PsiTreeNode({
               expanded={expanded}
               onToggle={onToggle}
               session={session}
+              toast={toast}
               onProposeSolution={() => {}}
               onProposeIndicator={onProposeIndicator}
               onApproved={onApproved}
@@ -305,13 +314,23 @@ function PsiTreeNode({
   );
 }
 
-async function approveNode(actorId: string, nodeId: string, action: "approve" | "reject", onDone: () => void) {
+async function approveNode(
+  actorId: string,
+  nodeId: string,
+  action: "approve" | "reject",
+  onDone: () => void,
+  toast: ToastApi,
+) {
   const res = await fetch(`/api/psi/${nodeId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", "x-actor-id": actorId },
     body: JSON.stringify({ action }),
   });
-  if (!res.ok) return;
+  if (!res.ok) {
+    toast.error("Update failed");
+    return;
+  }
+  toast.success(action === "approve" ? "Approved" : "Rejected");
   onDone();
 }
 
@@ -328,6 +347,7 @@ function NewPsiSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
@@ -351,11 +371,14 @@ function NewPsiSheet({
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(data.error ?? "Could not save");
+        toast.error(data.error ?? "Could not save");
         return;
       }
+      toast.success("Saved");
       onSaved();
     } catch {
       setError("Could not save");
+      toast.error("Could not save");
     } finally {
       setSaving(false);
     }

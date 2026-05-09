@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { getDashboardTabs, isTabActive } from "@/lib/dashboard/tabs";
 
@@ -59,16 +60,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-[#F9FAFB] shadow-sm">
-        <header className="flex shrink-0 items-center justify-between bg-gradient-to-r from-[#2563EB] to-[#3B82F6] px-4 py-3 text-white">
-          <span className="text-base font-semibold">PuravCare OS</span>
-          <button
-            type="button"
-            aria-label="Profile"
-            onClick={() => setProfileOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2563EB] text-sm font-semibold text-white ring-2 ring-white"
-          >
-            {initials(session.full_name)}
-          </button>
+        <header className="flex shrink-0 items-center justify-between gap-3 bg-gradient-to-r from-[#2563EB] to-[#3B82F6] px-4 py-3 text-white">
+          <span className="min-w-0 shrink text-base font-semibold">PuravCare OS</span>
+          <div className="flex shrink-0 items-center gap-2">
+            <NotificationBell actorId={session.id} />
+            <button
+              type="button"
+              aria-label="Profile"
+              onClick={() => setProfileOpen(true)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2563EB] text-sm font-semibold text-white ring-2 ring-white"
+            >
+              {initials(session.full_name)}
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 pb-24 pt-4">{children}</main>
@@ -142,6 +146,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </Link>
                   </li>
                 )}
+                <li>
+                  <Link
+                    href="/dashboard/my-work"
+                    className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                    onClick={() => setProfileOpen(false)}
+                  >
+                    My work
+                  </Link>
+                </li>
               </ul>
             </div>
 

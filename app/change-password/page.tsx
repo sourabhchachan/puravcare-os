@@ -3,10 +3,12 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
+  const toast = useToast();
   const { session, loading, updateSession } = useAuth({
     requireSession: true,
     passwordChangeRoute: true,
@@ -46,13 +48,16 @@ export default function ChangePasswordPage() {
 
       if (!res.ok) {
         setError("Could not update password. Try again.");
+        toast.error("Could not update password");
         return;
       }
 
       updateSession({ ...session, must_change_password: false });
+      toast.success("Password updated");
       router.replace("/dashboard");
     } catch {
       setError("Something went wrong. Please try again.");
+      toast.error("Something went wrong");
     } finally {
       setSubmitting(false);
     }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type ChainRow = {
@@ -35,6 +36,7 @@ function formatDt(iso: string) {
 
 export default function ChainTemplatesPage() {
   const { session, loading } = useAuth();
+  const toast = useToast();
   const [chains, setChains] = useState<ChainRow[]>([]);
   const [loadErr, setLoadErr] = useState("");
   const [loadingData, setLoadingData] = useState(true);
@@ -49,15 +51,17 @@ export default function ChainTemplatesPage() {
       const data = (await res.json()) as { chains?: ChainRow[]; error?: string };
       if (!res.ok) {
         setLoadErr(data.error ?? "Could not load chains");
+        toast.error(data.error ?? "Could not load chains");
         return;
       }
       setChains(data.chains ?? []);
     } catch {
       setLoadErr("Could not load chains");
+      toast.error("Could not load chains");
     } finally {
       setLoadingData(false);
     }
-  }, [session]);
+  }, [session, toast]);
 
   useEffect(() => {
     void load();
@@ -109,7 +113,14 @@ export default function ChainTemplatesPage() {
       </ul>
 
       {sheetOpen ? (
-        <NewChainSheet sessionId={session.id} onClose={() => setSheetOpen(false)} onSaved={() => void load()} />
+        <NewChainSheet
+          sessionId={session.id}
+          onClose={() => setSheetOpen(false)}
+          onSaved={() => {
+            toast.success("Chain created");
+            void load();
+          }}
+        />
       ) : null}
     </div>
   );
@@ -124,6 +135,7 @@ function NewChainSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [title, setTitle] = useState("");
   const [chainType, setChainType] = useState<"vertical" | "horizontal">("vertical");
   const [taskOptions, setTaskOptions] = useState<TaskOpt[]>([]);
@@ -188,12 +200,14 @@ function NewChainSheet({
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(data.error ?? "Could not save");
+        toast.error(data.error ?? "Could not save");
         return;
       }
       onSaved();
       onClose();
     } catch {
       setError("Could not save");
+      toast.error("Could not save");
     } finally {
       setSaving(false);
     }

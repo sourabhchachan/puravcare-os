@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type Vendor = { id: string; name: string };
@@ -22,6 +23,7 @@ function formatInr(n: number) {
 
 export default function ItemMasterPage() {
   const { session, loading: authLoading } = useAuth();
+  const toast = useToast();
   const [items, setItems] = useState<ItemRow[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,16 +48,18 @@ export default function ItemMasterPage() {
       }
       if (!res.ok) {
         setError(data.error ?? "Could not load items");
+        toast.error(data.error ?? "Could not load items");
         return;
       }
       setItems(data.items ?? []);
       setVendors(data.vendors ?? []);
     } catch {
       setError("Could not load items");
+      toast.error("Could not load items");
     } finally {
       setLoading(false);
     }
-  }, [session, canAccess]);
+  }, [session, canAccess, toast]);
 
   useEffect(() => {
     if (!session) return;
@@ -74,10 +78,14 @@ export default function ItemMasterPage() {
         headers: { "Content-Type": "application/json", "x-actor-id": session.id },
         body: JSON.stringify({ is_active: next }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        toast.error("Could not update item");
+        return;
+      }
+      toast.success(next ? "Item activated" : "Item deactivated");
       await load();
     } catch {
-      /* ignore */
+      toast.error("Could not update item");
     }
   }
 
@@ -166,6 +174,7 @@ export default function ItemMasterPage() {
           onClose={() => setSheet(null)}
           onSaved={() => {
             setSheet(null);
+            toast.success("Item saved");
             void load();
           }}
         />
@@ -187,6 +196,7 @@ function ItemSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [name, setName] = useState(initial?.name ?? "");
   const [price, setPrice] = useState(initial != null ? String(initial.price) : "");
   const [vendorId, setVendorId] = useState(initial?.vendor_id ?? "");
@@ -201,10 +211,12 @@ function ItemSheet({
     const priceNum = Number(price);
     if (!name.trim()) {
       setError("Name is required.");
+      toast.error("Name is required.");
       return;
     }
     if (Number.isNaN(priceNum)) {
       setError("Enter a valid price.");
+      toast.error("Enter a valid price.");
       return;
     }
 
@@ -235,14 +247,17 @@ function ItemSheet({
       if (!res.ok) {
         if (data.error === "duplicate_name") {
           setError("An item with this name already exists (same spelling, any case).");
+          toast.error("Duplicate item name");
         } else {
           setError(data.error ?? "Could not save");
+          toast.error(data.error ?? "Could not save");
         }
         return;
       }
       onSaved();
     } catch {
       setError("Could not save");
+      toast.error("Could not save");
     } finally {
       setSaving(false);
     }

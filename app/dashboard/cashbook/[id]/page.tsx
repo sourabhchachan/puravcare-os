@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type EntryRow = {
@@ -81,6 +82,7 @@ export default function CashbookDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { session, loading: authLoading } = useAuth();
+  const toast = useToast();
   const [data, setData] = useState<DetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -98,17 +100,19 @@ export default function CashbookDetailPage() {
       const body = (await res.json()) as DetailPayload & { error?: string };
       if (!res.ok) {
         setError(body.error ?? "Could not load");
+        toast.error(body.error ?? "Could not load");
         setData(null);
         return;
       }
       setData(body);
     } catch {
       setError("Could not load");
+      toast.error("Could not load");
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [session, id]);
+  }, [session, id, toast]);
 
   useEffect(() => {
     void load();
@@ -118,7 +122,10 @@ export default function CashbookDetailPage() {
     if (!session) return;
     const qs = new URLSearchParams({ start: startIso, end: endIso });
     const res = await fetch(`/api/cashbooks/${id}/export?${qs}`, { headers: { "x-actor-id": session.id } });
-    if (!res.ok) return;
+    if (!res.ok) {
+      toast.error("Export failed");
+      return;
+    }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -126,6 +133,7 @@ export default function CashbookDetailPage() {
     a.download = "cashbook.xlsx";
     a.click();
     URL.revokeObjectURL(url);
+    toast.success("Export downloaded");
     setExportOpen(false);
   }
 
@@ -237,6 +245,7 @@ export default function CashbookDetailPage() {
           onClose={() => setAddOpen(false)}
           onSaved={() => {
             setAddOpen(false);
+            toast.success("Entry saved");
             void load();
           }}
         />
@@ -252,6 +261,7 @@ export default function CashbookDetailPage() {
           onClose={() => setEditEntry(null)}
           onSaved={() => {
             setEditEntry(null);
+            toast.success("Entry updated");
             void load();
           }}
         />
@@ -306,6 +316,7 @@ function EntrySheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [entryType, setEntryType] = useState<"in" | "out">((initial?.entry_type as "in" | "out") ?? "in");
   const [amount, setAmount] = useState(initial != null ? String(initial.amount) : "");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -324,6 +335,7 @@ function EntrySheet({
       const n = Number(amount);
       if (Number.isNaN(n) || n <= 0) {
         setError("Enter a valid amount.");
+        toast.error("Enter a valid amount.");
         setSaving(false);
         return;
       }
@@ -341,6 +353,7 @@ function EntrySheet({
         const body = (await res.json()) as { error?: string };
         if (!res.ok) {
           setError(body.error ?? "Could not save");
+          toast.error(body.error ?? "Could not save");
           return;
         }
       } else if (initial) {
@@ -357,12 +370,14 @@ function EntrySheet({
         const body = (await res.json()) as { error?: string };
         if (!res.ok) {
           setError(body.error ?? "Could not save");
+          toast.error(body.error ?? "Could not save");
           return;
         }
       }
       onSaved();
     } catch {
       setError("Could not save");
+      toast.error("Could not save");
     } finally {
       setSaving(false);
     }
@@ -454,6 +469,7 @@ function MembersSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState<"admin" | "data_operator">("admin");
   const [canBackdate, setCanBackdate] = useState<"always" | "never" | "1day">("never");
@@ -481,8 +497,10 @@ function MembersSheet({
     const body = (await res.json()) as { error?: string };
     if (!res.ok) {
       setError(body.error ?? "Could not add");
+      toast.error(body.error ?? "Could not add");
       return;
     }
+    toast.success("Member added");
     setUserId("");
     onSaved();
   }
@@ -492,7 +510,11 @@ function MembersSheet({
       method: "DELETE",
       headers: { "x-actor-id": sessionId },
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      toast.error("Could not remove member");
+      return;
+    }
+    toast.warning("Member removed");
     onSaved();
   }
 

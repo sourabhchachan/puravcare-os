@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type ItemOpt = { id: string; name: string; price: number };
@@ -52,6 +53,7 @@ export default function PatientDetailPage() {
   const params = useParams();
   const patientId = params.id as string;
   const { session } = useAuth();
+  const toast = useToast();
   const [patient, setPatient] = useState<PatientRow | null>(null);
   const [billRows, setBillRows] = useState<BillRow[]>([]);
   const [activeItems, setActiveItems] = useState<ItemOpt[]>([]);
@@ -77,6 +79,7 @@ export default function PatientDetailPage() {
       };
       if (!res.ok || !body.patient) {
         setError(body.error ?? "Could not load patient");
+        toast.error(body.error ?? "Could not load patient");
         return;
       }
       setPatient(body.patient);
@@ -85,10 +88,11 @@ export default function PatientDetailPage() {
       setActiveTotal(Number(body.active_total ?? 0));
     } catch {
       setError("Could not load patient");
+      toast.error("Could not load patient");
     } finally {
       setLoading(false);
     }
-  }, [session, patientId]);
+  }, [session, patientId, toast]);
 
   useEffect(() => {
     void load();
@@ -273,6 +277,7 @@ function AddBillItemSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [itemId, setItemId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [unitPrice, setUnitPrice] = useState("");
@@ -303,11 +308,14 @@ function AddBillItemSheet({
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(body.error ?? "Could not save");
+        toast.error(body.error ?? "Could not save");
         return;
       }
+      toast.success("Item added");
       onSaved();
     } catch {
       setError("Could not save");
+      toast.error("Could not save");
     } finally {
       setSaving(false);
     }
@@ -393,6 +401,7 @@ function CancelBillItemSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [remarks, setRemarks] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -411,11 +420,14 @@ function CancelBillItemSheet({
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(body.error ?? "Could not cancel");
+        toast.error(body.error ?? "Could not cancel");
         return;
       }
+      toast.warning("Billable item cancelled");
       onSaved();
     } catch {
       setError("Could not cancel");
+      toast.error("Could not cancel");
     } finally {
       setSaving(false);
     }
@@ -465,6 +477,7 @@ function DischargeSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -480,11 +493,14 @@ function DischargeSheet({
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(body.error ?? "Could not discharge");
+        toast.error(body.error ?? "Could not discharge");
         return;
       }
+      toast.success("Patient discharged");
       onSaved();
     } catch {
       setError("Could not discharge");
+      toast.error("Could not discharge");
     } finally {
       setSaving(false);
     }

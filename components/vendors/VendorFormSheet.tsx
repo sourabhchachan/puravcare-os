@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
+
 type VendorRow = {
   id: string;
   name: string;
@@ -30,6 +32,7 @@ export function VendorFormSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [name, setName] = useState(initial?.name ?? "");
   const [category, setCategory] = useState(initial?.category ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
@@ -88,6 +91,7 @@ export function VendorFormSheet({
         const data = (await res.json()) as { error?: string };
         if (!res.ok) {
           setError(data.error ?? "Could not save");
+          toast.error(data.error ?? "Could not save");
           return;
         }
       } else if (vendorId) {
@@ -105,6 +109,7 @@ export function VendorFormSheet({
         const data = (await res.json()) as { error?: string };
         if (!res.ok) {
           setError(data.error ?? "Could not save");
+          toast.error(data.error ?? "Could not save");
           return;
         }
       }
@@ -112,6 +117,7 @@ export function VendorFormSheet({
       onClose();
     } catch {
       setError("Could not save");
+      toast.error("Could not save");
     } finally {
       setSaving(false);
     }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type Indent = {
@@ -31,6 +32,7 @@ function formatDt(iso: string) {
 
 export default function VendorDispatchedPage() {
   const { session, loading } = useAuth();
+  const toast = useToast();
   const [indents, setIndents] = useState<Indent[]>([]);
   const [err, setErr] = useState("");
   const [loadingData, setLoadingData] = useState(true);
@@ -51,15 +53,17 @@ export default function VendorDispatchedPage() {
       const data = (await res.json()) as { indents?: Indent[]; error?: string };
       if (!res.ok) {
         setErr(data.error ?? "Could not load");
+        toast.error(data.error ?? "Could not load");
         return;
       }
       setIndents(data.indents ?? []);
     } catch {
       setErr("Could not load");
+      toast.error("Could not load");
     } finally {
       setLoadingData(false);
     }
-  }, [session]);
+  }, [session, toast]);
 
   useEffect(() => {
     void load();

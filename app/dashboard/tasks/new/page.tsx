@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { normalizeTemplateTaskType } from "@/lib/task/taskTypes";
 
@@ -17,6 +18,7 @@ const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "week
 export default function NewTaskPage() {
   const router = useRouter();
   const { session } = useAuth();
+  const toast = useToast();
   const [users, setUsers] = useState<UserOpt[]>([]);
   const [patients, setPatients] = useState<PatientOpt[]>([]);
   const [psiNodes, setPsiNodes] = useState<PsiOpt[]>([]);
@@ -74,6 +76,7 @@ export default function NewTaskPage() {
         );
       } catch {
         setError("Could not load form.");
+        toast.error("Could not load form");
       } finally {
         if (!cancelled) setLoadingMeta(false);
       }
@@ -81,7 +84,7 @@ export default function NewTaskPage() {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [session, toast]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -112,11 +115,14 @@ export default function NewTaskPage() {
       const body = (await res.json()) as { error?: string; task?: { id: string } };
       if (!res.ok) {
         setError(body.error ?? "Could not create task");
+        toast.error(body.error ?? "Could not create task");
         return;
       }
+      toast.success("Task created");
       router.replace(`/dashboard/tasks/${body.task?.id ?? ""}`);
     } catch {
       setError("Could not create task");
+      toast.error("Could not create task");
     } finally {
       setSaving(false);
     }

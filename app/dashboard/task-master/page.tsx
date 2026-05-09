@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { normalizeTemplateTaskType } from "@/lib/task/taskTypes";
 
@@ -18,6 +19,7 @@ function typeLabel(t: string) {
 
 export default function TaskMasterPage() {
   const { session, loading: authLoading } = useAuth();
+  const toast = useToast();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -32,15 +34,17 @@ export default function TaskMasterPage() {
       const data = (await res.json()) as { templates?: Template[]; error?: string };
       if (!res.ok) {
         setError(data.error ?? "Could not load templates");
+        toast.error(data.error ?? "Could not load templates");
         return;
       }
       setTemplates((data.templates ?? []) as Template[]);
     } catch {
       setError("Could not load templates");
+      toast.error("Could not load templates");
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [session, toast]);
 
   useEffect(() => {
     void load();
@@ -54,10 +58,14 @@ export default function TaskMasterPage() {
         headers: { "Content-Type": "application/json", "x-actor-id": session.id },
         body: JSON.stringify({ is_active: next }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        toast.error("Could not update template");
+        return;
+      }
+      toast.success(next ? "Template activated" : "Template deactivated");
       await load();
     } catch {
-      /* ignore */
+      toast.error("Could not update template");
     }
   }
 
@@ -125,6 +133,7 @@ export default function TaskMasterPage() {
           onClose={() => setSheet(null)}
           onSaved={() => {
             setSheet(null);
+            toast.success("Template saved");
             void load();
           }}
         />
@@ -144,6 +153,7 @@ function TemplateSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [taskType, setTaskType] = useState<"ops" | "clinical">(
     initial ? normalizeTemplateTaskType(initial.task_type) : "ops",
@@ -173,11 +183,13 @@ function TemplateSheet({
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(data.error ?? "Could not save");
+        toast.error(data.error ?? "Could not save");
         return;
       }
       onSaved();
     } catch {
       setError("Could not save");
+      toast.error("Could not save");
     } finally {
       setSaving(false);
     }

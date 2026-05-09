@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { priorityBorderClass, PriorityBadge, StatusBadge } from "@/components/tasks/TaskBadges";
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type TaskRow = Record<string, unknown> & {
@@ -49,6 +50,7 @@ export default function TaskDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { session } = useAuth();
+  const toast = useToast();
 
   const [task, setTask] = useState<TaskRow | null>(null);
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -86,6 +88,7 @@ export default function TaskDetailPage() {
       };
       if (!res.ok) {
         setError(data.error ?? "Could not load task");
+        toast.error(data.error ?? "Could not load task");
         setTask(null);
         return;
       }
@@ -102,10 +105,11 @@ export default function TaskDetailPage() {
       if (meta.ok) setUsers(metaJson.users ?? []);
     } catch {
       setError("Could not load task");
+      toast.error("Could not load task");
     } finally {
       setLoading(false);
     }
-  }, [session, id]);
+  }, [session, id, toast]);
 
   useEffect(() => {
     void load();
@@ -124,12 +128,24 @@ export default function TaskDetailPage() {
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(body.error ?? "Action failed");
+        toast.error(body.error ?? "Action failed");
         return false;
       }
+      const okLabels: Record<string, string> = {
+        acknowledge: "Acknowledged",
+        mark_done: "Saved",
+        upload_proof: "Proof saved",
+        confirm: "Task completed",
+        countersign: "Task completed",
+        reassign: "Task reassigned",
+        mark_blocked: "Marked as blocked",
+      };
+      toast.success(okLabels[action] ?? "Saved");
       await load();
       return true;
     } catch {
       setError("Action failed");
+      toast.error("Action failed");
       return false;
     } finally {
       setBusy(false);

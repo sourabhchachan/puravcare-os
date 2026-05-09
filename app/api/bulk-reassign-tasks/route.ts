@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
+import { notifyNewTaskAssigned } from "@/lib/notifications/taskNotify";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type Body = {
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
   const terminal = new Set(["closed", "confirmed"]);
 
   for (const tid of ids) {
-    const { data: task } = await supabase.from("tasks").select("assignee_id, status").eq("id", tid).maybeSingle();
+    const { data: task } = await supabase.from("tasks").select("assignee_id, status, title").eq("id", tid).maybeSingle();
     if (!task || terminal.has(task.status as string)) continue;
 
     const prevAssignee = task.assignee_id as string;
@@ -75,6 +76,10 @@ export async function POST(request: Request) {
       new_value: "pending",
       note: "bulk reassign",
     });
+
+    if (newAssignee !== prevAssignee) {
+      await notifyNewTaskAssigned(supabase, newAssignee, (task.title as string) ?? "Task", tid);
+    }
   }
 
   return NextResponse.json({ ok: true });

@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { priorityBorderClass, PriorityBadge, StatusBadge } from "@/components/tasks/TaskBadges";
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type TaskRow = {
@@ -47,6 +48,7 @@ export default function TasksListPage() {
 
 function TasksListInner() {
   const { session } = useAuth();
+  const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [filter, setFilter] = useState<FilterId>("all");
@@ -84,16 +86,18 @@ function TasksListInner() {
       const data = (await res.json()) as { tasks?: TaskRow[]; can_create_tasks?: boolean; error?: string };
       if (!res.ok) {
         setError(data.error ?? "Could not load tasks");
+        toast.error(data.error ?? "Could not load tasks");
         return;
       }
       setTasks(data.tasks ?? []);
       setCanCreate(Boolean(data.can_create_tasks));
     } catch {
       setError("Could not load tasks");
+      toast.error("Could not load tasks");
     } finally {
       setLoading(false);
     }
-  }, [session, filter]);
+  }, [session, filter, toast]);
 
   useEffect(() => {
     void load();

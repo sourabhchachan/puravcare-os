@@ -8,6 +8,7 @@ import {
   pauseChainsForBlockedTask,
   processAllChainsAfterTaskClosed,
 } from "@/lib/chains/onTaskClose";
+import { notifyNewTaskAssigned, notifyTaskBlockedRequester, notifyTaskCompletedRequester } from "@/lib/notifications/taskNotify";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type TaskRow = {
@@ -203,6 +204,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           note: "tap",
         });
         await processAllChainsAfterTaskClosed(supabase, id);
+        await notifyTaskCompletedRequester(supabase, t.created_by, actorId, t.title, id);
       } else if (t.proof_type === "countersign") {
         await supabase.from("tasks").update({ status: "done", updated_at: nowIso }).eq("id", id);
         await insertEvent(supabase, {
@@ -272,6 +274,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         note: "confirmed",
       });
       await processAllChainsAfterTaskClosed(supabase, id);
+      await notifyTaskCompletedRequester(supabase, t.created_by, actorId, t.title, id);
       break;
     }
     case "countersign": {
@@ -296,6 +299,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         note: null,
       });
       await processAllChainsAfterTaskClosed(supabase, id);
+      await notifyTaskCompletedRequester(supabase, t.created_by, actorId, t.title, id);
       break;
     }
     case "reassign": {
@@ -333,6 +337,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         new_value: "pending",
         note: "reassign",
       });
+      if (newAssignee !== prevAssignee) {
+        await notifyNewTaskAssigned(supabase, newAssignee, t.title, id);
+      }
       break;
     }
     case "mark_blocked": {
@@ -358,6 +365,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         note: body.note?.trim() || null,
       });
       await pauseChainsForBlockedTask(supabase, id, t.title);
+      await notifyTaskBlockedRequester(supabase, t.created_by, actorId, t.title, id);
       break;
     }
     default:

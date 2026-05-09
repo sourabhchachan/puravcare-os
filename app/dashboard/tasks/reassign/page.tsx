@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { priorityBorderClass, PriorityBadge, StatusBadge } from "@/components/tasks/TaskBadges";
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type UserOpt = { id: string; full_name: string; role: string };
@@ -27,6 +28,7 @@ function formatDue(due: string | null) {
 
 export default function BulkReassignPage() {
   const { session } = useAuth();
+  const toast = useToast();
   const [users, setUsers] = useState<UserOpt[]>([]);
   const [assigneeId, setAssigneeId] = useState("");
   const [tasks, setTasks] = useState<TaskRow[]>([]);
@@ -47,6 +49,7 @@ export default function BulkReassignPage() {
         const res = await fetch("/api/task-meta", { headers: { "x-actor-id": session.id } });
         const data = (await res.json()) as { users?: UserOpt[] };
         if (!cancelled && res.ok) setUsers(data.users ?? []);
+        else if (!cancelled && !res.ok) toast.error("Could not load users");
       } finally {
         if (!cancelled) setLoadingUsers(false);
       }
@@ -54,7 +57,7 @@ export default function BulkReassignPage() {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [session, toast]);
 
   const loadTasks = useCallback(async () => {
     if (!session || !assigneeId) return;
@@ -69,16 +72,18 @@ export default function BulkReassignPage() {
       const data = (await res.json()) as { tasks?: TaskRow[]; error?: string };
       if (!res.ok) {
         setError(data.error ?? "Could not load tasks");
+        toast.error(data.error ?? "Could not load tasks");
         setTasks([]);
         return;
       }
       setTasks(data.tasks ?? []);
     } catch {
       setError("Could not load tasks");
+      toast.error("Could not load tasks");
     } finally {
       setLoadingTasks(false);
     }
-  }, [session, assigneeId]);
+  }, [session, assigneeId, toast]);
 
   useEffect(() => {
     if (assigneeId) void loadTasks();
@@ -137,14 +142,17 @@ export default function BulkReassignPage() {
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(body.error ?? "Bulk reassign failed");
+        toast.error(body.error ?? "Bulk reassign failed");
         return;
       }
+      toast.success("Tasks reassigned");
       setReason("");
       setNewAssignee("");
       setSelected({});
       await loadTasks();
     } catch {
       setError("Bulk reassign failed");
+      toast.error("Bulk reassign failed");
     } finally {
       setSaving(false);
     }

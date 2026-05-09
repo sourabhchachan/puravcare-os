@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type PatientRow = {
@@ -26,6 +27,7 @@ function fmtDate(value: string) {
 
 export default function PatientsPage() {
   const { session } = useAuth();
+  const toast = useToast();
   const [status, setStatus] = useState<"active" | "discharged">("active");
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<PatientRow[]>([]);
@@ -42,15 +44,17 @@ export default function PatientsPage() {
       const body = (await res.json()) as { patients?: PatientRow[]; error?: string };
       if (!res.ok) {
         setError(body.error ?? "Could not load patients");
+        toast.error(body.error ?? "Could not load patients");
         return;
       }
       setRows(body.patients ?? []);
     } catch {
       setError("Could not load patients");
+      toast.error("Could not load patients");
     } finally {
       setLoading(false);
     }
-  }, [session, status, search]);
+  }, [session, status, search, toast]);
 
   useEffect(() => {
     void load();
