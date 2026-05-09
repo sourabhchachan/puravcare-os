@@ -1,5 +1,5 @@
-import { PlaceholderPage } from "@/components/dashboard/PlaceholderPage";
+import { redirect } from "next/navigation";
 
-export default function PsiFrameworkPage() {
-  return <PlaceholderPage title="PSI Framework" />;
+export default function PsiFrameworkRedirectPage() {
+  redirect("/dashboard/psi");
 }

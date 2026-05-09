@@ -31,10 +31,26 @@ export async function GET(request: Request) {
   const filter = url.searchParams.get("filter") || "all";
   const assigneeFilter = url.searchParams.get("assignee_id");
   const openOnly = url.searchParams.get("open_only") === "1";
+  const countOnly = url.searchParams.get("count_only") === "1";
 
   const role = await getUserRole(actorId);
   const isCeo = role === "ceo";
   const supabase = createServiceClient();
+
+  if (countOnly && filter === "unlinked") {
+    let countQuery = supabase
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .is("psi_node_id", null)
+      .neq("status", "closed");
+    if (!isCeo) {
+      countQuery = countQuery.eq("assignee_id", actorId!);
+    }
+    const { count, error: countError } = await countQuery;
+    if (countError) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+    return NextResponse.json({ count: count ?? 0 });
+  }
 
   let query = supabase.from("tasks").select("*").eq("is_active", true).order("created_at", { ascending: false });
 
@@ -57,6 +73,8 @@ export async function GET(request: Request) {
       .not("due_at", "is", null)
       .lt("due_at", nowIso)
       .in("status", ["pending", "acknowledged", "in_progress", "blocked"]);
+  } else if (filter === "unlinked") {
+    query = query.is("psi_node_id", null).neq("status", "closed");
   }
 
   const { data: tasks, error } = await query;

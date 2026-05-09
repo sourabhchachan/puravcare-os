@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/lib/hooks/useAuth";
 
@@ -45,6 +46,14 @@ function IconRupee({ className }: { className?: string }) {
   );
 }
 
+function IconUnlinked({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M10 14a4 4 0 010-6l1-1M14 10a4 4 0 010 6l-1 1M7 21l10-10M17 3L7 13" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 const STAT_CARDS = [
   {
     label: "Total Tasks Today",
@@ -82,11 +91,28 @@ const STAT_CARDS = [
 
 export default function DashboardHomePage() {
   const { session, loading } = useAuth();
+  const [unlinkedCount, setUnlinkedCount] = useState<number | null>(null);
 
   const title = useMemo(() => {
     if (!session) return "Welcome";
     return greeting(session.full_name);
   }, [session]);
+
+  const loadUnlinked = useCallback(async () => {
+    if (!session || session.role !== "ceo") return;
+    try {
+      const res = await fetch("/api/tasks?filter=unlinked&count_only=1", { headers: { "x-actor-id": session.id } });
+      const data = (await res.json()) as { count?: number };
+      if (!res.ok) return;
+      setUnlinkedCount(typeof data.count === "number" ? data.count : 0);
+    } catch {
+      setUnlinkedCount(null);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    void loadUnlinked();
+  }, [loadUnlinked]);
 
   if (loading || !session) return null;
 
@@ -110,6 +136,18 @@ export default function DashboardHomePage() {
             </div>
           );
         })}
+        {session.role === "ceo" ? (
+          <Link
+            href="/dashboard/tasks?filter=unlinked"
+            className="relative block overflow-hidden rounded-xl border border-y border-r border-slate-100/90 border-l-4 border-l-[#F59E0B] bg-amber-50 p-4 shadow-sm transition hover:opacity-95"
+          >
+            <IconUnlinked className="absolute right-3 top-3 h-7 w-7 shrink-0 text-[#F59E0B]" />
+            <p className="pr-10 text-[10px] font-bold uppercase leading-tight tracking-wide text-slate-600">
+              Tasks Unlinked to PSI
+            </p>
+            <p className="mt-3 text-3xl font-bold tabular-nums text-slate-900">{unlinkedCount ?? "—"}</p>
+          </Link>
+        ) : null}
       </div>
     </div>
   );

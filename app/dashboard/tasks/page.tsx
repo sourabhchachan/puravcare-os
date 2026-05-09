@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { priorityBorderClass, PriorityBadge, StatusBadge } from "@/components/tasks/TaskBadges";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -15,12 +16,14 @@ type TaskRow = {
   status: string;
 };
 
-const FILTERS = [
+const BASE_FILTERS = [
   { id: "all", label: "All" },
   { id: "my", label: "My Tasks" },
   { id: "overdue", label: "Overdue" },
   { id: "blocked", label: "Blocked" },
 ] as const;
+
+type FilterId = (typeof BASE_FILTERS)[number]["id"] | "unlinked";
 
 function formatDue(due: string | null) {
   if (!due) return "—";
@@ -35,12 +38,42 @@ function formatDue(due: string | null) {
 }
 
 export default function TasksListPage() {
+  return (
+    <Suspense fallback={<div className="space-y-4"><p className="text-sm text-slate-500">Loading…</p></div>}>
+      <TasksListInner />
+    </Suspense>
+  );
+}
+
+function TasksListInner() {
   const { session } = useAuth();
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [filter, setFilter] = useState<FilterId>("all");
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [canCreate, setCanCreate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const filters = useMemo(() => {
+    const list = [...BASE_FILTERS] as { id: FilterId; label: string }[];
+    if (session?.role === "ceo") list.push({ id: "unlinked", label: "Unlinked PSI" });
+    return list;
+  }, [session?.role]);
+
+  useEffect(() => {
+    const f = searchParams.get("filter");
+    if (f === "unlinked" && session?.role === "ceo") setFilter("unlinked");
+  }, [searchParams, session?.role]);
+
+  function setFilterAndUrl(next: FilterId) {
+    setFilter(next);
+    if (next === "unlinked" && session?.role === "ceo") {
+      router.replace("/dashboard/tasks?filter=unlinked", { scroll: false });
+    } else {
+      router.replace("/dashboard/tasks", { scroll: false });
+    }
+  }
 
   const load = useCallback(async () => {
     if (!session) return;
@@ -90,11 +123,11 @@ export default function TasksListPage() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
+        {filters.map((f) => (
           <button
             key={f.id}
             type="button"
-            onClick={() => setFilter(f.id)}
+            onClick={() => setFilterAndUrl(f.id)}
             className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
               filter === f.id ? "bg-[#2563EB] text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
             }`}
@@ -139,3 +172,4 @@ export default function TasksListPage() {
     </div>
   );
 }
+

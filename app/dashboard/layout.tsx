@@ -29,7 +29,6 @@ const ceoLinks = [
   { href: "/dashboard/users", label: "User Management" },
   { href: "/dashboard/task-master", label: "Task Master" },
   { href: "/dashboard/item-master", label: "Item Master" },
-  { href: "/dashboard/psi-framework", label: "PSI Framework" },
   { href: "/dashboard/audit-log", label: "Audit Log" },
   { href: "/dashboard/chain-templates", label: "Chain Templates" },
   { href: "/dashboard/vendors", label: "Vendors" },
@@ -112,6 +111,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <p className="text-sm text-slate-500">
               {roleLabel(session.role)} · Staff {session.staff_id}
             </p>
+
+            <div className="mt-4 space-y-1 border-t border-slate-100 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Operations</p>
+              <ul className="space-y-1">
+                <li>
+                  <Link
+                    href="/dashboard/psi"
+                    className="block rounded-lg px-3 py-2 text-sm text-[#2563EB] hover:bg-slate-50"
+                    onClick={() => setProfileOpen(false)}
+                  >
+                    PSI Framework
+                  </Link>
+                </li>
+              </ul>
+            </div>
 
             {session.role === "ceo" ? (
               <div className="mt-4 space-y-1 border-t border-slate-100 pt-4">
