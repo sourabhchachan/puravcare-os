@@ -71,6 +71,31 @@ export async function POST(request: Request) {
 
   if (error || !row) return NextResponse.json({ error: "insert_failed" }, { status: 500 });
 
+  const { data: activeUsers, error: activeUsersError } = await supabase
+    .from("users")
+    .select("id")
+    .eq("is_active", true)
+    .neq("id", actorId!);
+  if (activeUsersError) {
+    return NextResponse.json({ error: "notification_users_fetch_failed" }, { status: 500 });
+  }
+
+  if ((activeUsers ?? []).length) {
+    const noticeBody = (row.body as string | null)?.trim() ?? "";
+    const notificationBody = noticeBody.slice(0, 100);
+    const notifications = (activeUsers ?? []).map((u) => ({
+      user_id: u.id as string,
+      type: "notice",
+      title: `New Notice: ${row.title as string}`,
+      body: notificationBody,
+      is_read: false,
+    }));
+    const { error: nErr } = await supabase.from("notifications").insert(notifications);
+    if (nErr) {
+      return NextResponse.json({ error: "notification_insert_failed" }, { status: 500 });
+    }
+  }
+
   const { data: u } = await supabase.from("users").select("full_name").eq("id", actorId!).maybeSingle();
 
   return NextResponse.json({
