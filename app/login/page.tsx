@@ -88,7 +88,6 @@ function LoginPageScreen() {
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-blue-50 to-[#F9FAFB] px-4 py-8">
       <div className="w-full max-w-[430px] rounded-2xl border border-gray-100 bg-white p-6 shadow-xl">
         <h1 className="text-center text-2xl font-bold tracking-tight text-gray-900">PuravCare OS</h1>
-        <p className="mt-1 text-center text-sm text-gray-500">Agastya Care · Gurgaon</p>
 
         <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
           <div>
