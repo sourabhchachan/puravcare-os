@@ -107,12 +107,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  if (body.action !== "discharge") {
+  if (!["discharge", "readmit"].includes(body.action ?? "")) {
     return NextResponse.json({ error: "invalid_action" }, { status: 400 });
   }
 
   const role = await getUserRole(actorId);
-  if (!["ceo", "ops"].includes(role ?? "")) {
+  if (body.action === "discharge" && !["ceo", "ops"].includes(role ?? "")) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  if (body.action === "readmit" && role !== "ceo") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -120,12 +123,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const supabase = createServiceClient();
   const { data: patient } = await supabase.from("patients").select("id, status").eq("id", id).maybeSingle();
   if (!patient) return NextResponse.json({ error: "not_found" }, { status: 404 });
-  if (patient.status === "discharged") return NextResponse.json({ error: "already_discharged" }, { status: 400 });
 
-  const { error } = await supabase
-    .from("patients")
-    .update({ status: "discharged", discharge_date: new Date().toISOString() })
-    .eq("id", id);
+  let error: { message?: string } | null = null;
+  if (body.action === "discharge") {
+    if (patient.status === "discharged") return NextResponse.json({ error: "already_discharged" }, { status: 400 });
+    const { error: updateErr } = await supabase
+      .from("patients")
+      .update({ status: "discharged", discharge_date: new Date().toISOString() })
+      .eq("id", id);
+    error = updateErr;
+  } else {
+    if (patient.status !== "discharged") return NextResponse.json({ error: "not_discharged" }, { status: 400 });
+    const { error: updateErr } = await supabase
+      .from("patients")
+      .update({ status: "active", discharge_date: null })
+      .eq("id", id);
+    error = updateErr;
+  }
   if (error) return NextResponse.json({ error: "update_failed" }, { status: 500 });
 
   return NextResponse.json({ ok: true });

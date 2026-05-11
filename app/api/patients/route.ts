@@ -83,6 +83,16 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceClient();
+  if (admissionType === "ipd" && ipdNumber) {
+    const { data: existingIpd, error: ipdErr } = await supabase
+      .from("patients")
+      .select("id")
+      .eq("ipd_number", ipdNumber)
+      .limit(1)
+      .maybeSingle();
+    if (ipdErr) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+    if (existingIpd) return NextResponse.json({ error: "ipd_number_taken" }, { status: 400 });
+  }
   const { data: lastRow } = await supabase
     .from("patients")
     .select("uhid")

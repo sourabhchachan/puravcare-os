@@ -66,8 +66,9 @@ export default function NewPatientPage() {
       });
       const body = (await response.json()) as { error?: string; patient?: { id: string } };
       if (!response.ok || !body.patient?.id) {
-        setError(body.error ?? "Could not admit patient");
-        toast.error(body.error ?? "Could not admit patient");
+        const message = body.error === "ipd_number_taken" ? "This IPD number is already in use" : (body.error ?? "Could not admit patient");
+        setError(message);
+        toast.error(message);
         return;
       }
       toast.success("Patient admitted");

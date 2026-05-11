@@ -105,6 +105,10 @@ export default function PatientDetailPage() {
     () => Boolean(session && ["ceo", "ops"].includes(session.role) && patient?.status === "active"),
     [session, patient],
   );
+  const readmitAllowed = useMemo(
+    () => Boolean(session && session.role === "ceo" && patient?.status === "discharged"),
+    [session, patient],
+  );
 
   if (!session) return null;
   if (loading) return <p className="text-sm text-slate-500">Loading...</p>;
@@ -131,6 +135,15 @@ export default function PatientDetailPage() {
             className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700"
           >
             Discharge Patient
+          </button>
+        ) : null}
+        {readmitAllowed ? (
+          <button
+            type="button"
+            onClick={() => void onReadmit()}
+            className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
+          >
+            Revert to Admitted
           </button>
         ) : null}
       </div>
@@ -284,6 +297,26 @@ export default function PatientDetailPage() {
       ) : null}
     </div>
   );
+
+  async function onReadmit() {
+    if (!session || !patient) return;
+    try {
+      const res = await fetch(`/api/patients/${patient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-actor-id": session.id },
+        body: JSON.stringify({ action: "readmit" }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(body.error ?? "Could not revert to admitted");
+        return;
+      }
+      toast.success("Patient reverted to admitted");
+      void load();
+    } catch {
+      toast.error("Could not revert to admitted");
+    }
+  }
 }
 
 function AddBillItemSheet({
