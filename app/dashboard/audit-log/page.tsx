@@ -9,11 +9,16 @@ import { useAuth } from "@/lib/hooks/useAuth";
 
 type AuditRow = {
   id: string;
-  task_id: string;
-  task_title: string;
+  source: "task" | "indent";
+  task_id: string | null;
+  indent_id: string | null;
+  item_name: string;
+  task_title: string | null;
   event_type: string;
   actor_id: string;
   actor_name: string;
+  patient_ipd: string | null;
+  patient_name: string | null;
   old_value: string | null;
   new_value: string | null;
   note: string | null;
@@ -122,7 +127,7 @@ export default function AuditLogPage() {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Audit log</h1>
-          <p className="text-sm text-slate-500">All task events</p>
+          <p className="text-sm text-slate-500">Task and indent events</p>
         </div>
         <button
           type="button"
@@ -201,15 +206,17 @@ export default function AuditLogPage() {
         {rows.map((r) => (
           <li key={r.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
             <p className="text-xs text-slate-500">{formatDt(r.created_at)}</p>
-            <p className="font-semibold text-slate-900">{r.task_title}</p>
+            <p className="font-semibold text-slate-900">{r.item_name}</p>
             <p className="text-xs font-medium capitalize text-[#2563EB]">{r.event_type.replace(/_/g, " ")}</p>
             <p className="text-xs text-slate-600">
-              {r.actor_name}
-              {(r.old_value || r.new_value) && (
-                <span className="block">
-                  {r.old_value ?? "—"} → {r.new_value ?? "—"}
-                </span>
-              )}
+              Actor: {r.actor_name}
+              <span className="block">Type: {r.source}</span>
+              <span className="block">
+                Patient: {r.patient_ipd ? `${r.patient_ipd} · ${r.patient_name ?? "—"}` : "—"}
+              </span>
+              <span className="block">
+                {r.old_value ?? "—"} → {r.new_value ?? "—"}
+              </span>
               {r.note ? <span className="block text-slate-500">{r.note}</span> : null}
             </p>
           </li>

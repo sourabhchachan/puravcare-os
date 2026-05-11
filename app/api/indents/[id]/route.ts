@@ -47,6 +47,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const reason = (body.reason ?? "").trim();
     if (!reason) return NextResponse.json({ error: "missing_reason" }, { status: 400 });
 
+    const oldStatus = row.status as string;
     const { data, error } = await supabase
       .from("indents")
       .update({
@@ -60,6 +61,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .select("*")
       .single();
     if (error || !data) return NextResponse.json({ error: "update_failed" }, { status: 500 });
+    const { error: eventErr } = await supabase.from("indent_events").insert({
+      indent_id: id,
+      actor_id: actorId!,
+      event_type: "cancel",
+      old_value: oldStatus,
+      new_value: "cancelled",
+      note: reason,
+    });
+    if (eventErr) return NextResponse.json({ error: "event_log_failed" }, { status: 500 });
     return NextResponse.json({ indent: data });
   }
 
@@ -73,6 +83,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const reason = (body.reason ?? "").trim();
     if (!reason) return NextResponse.json({ error: "missing_reason" }, { status: 400 });
 
+    const oldStatus = row.status as string;
     const { data, error } = await supabase
       .from("indents")
       .update({
@@ -86,6 +97,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .select("*")
       .single();
     if (error || !data) return NextResponse.json({ error: "update_failed" }, { status: 500 });
+    const { error: eventErr } = await supabase.from("indent_events").insert({
+      indent_id: id,
+      actor_id: actorId!,
+      event_type: "block",
+      old_value: oldStatus,
+      new_value: "blocked",
+      note: reason,
+    });
+    if (eventErr) return NextResponse.json({ error: "event_log_failed" }, { status: 500 });
     return NextResponse.json({ indent: data, message: "Indent blocked" });
   }
 
@@ -102,6 +122,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
+    const oldStatus = row.status as string;
     const { data, error } = await supabase
       .from("indents")
       .update({ status: "dispatched", updated_at: nowIso })
@@ -109,6 +130,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .select("*")
       .single();
     if (error || !data) return NextResponse.json({ error: "update_failed" }, { status: 500 });
+    const { error: eventErr } = await supabase.from("indent_events").insert({
+      indent_id: id,
+      actor_id: actorId!,
+      event_type: "dispatch",
+      old_value: oldStatus,
+      new_value: "dispatched",
+      note: null,
+    });
+    if (eventErr) return NextResponse.json({ error: "event_log_failed" }, { status: 500 });
     return NextResponse.json({ indent: data });
   }
 
@@ -120,6 +150,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (row.status !== "dispatched") return NextResponse.json({ error: "invalid_state" }, { status: 400 });
     if (!row.patient_id) return NextResponse.json({ error: "missing_patient" }, { status: 400 });
 
+    const oldStatus = row.status as string;
     const { data: deliveredRow, error: deliveredErr } = await supabase
       .from("indents")
       .update({
@@ -183,6 +214,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       total_price: 0,
     });
     if (invoiceItemErr) return NextResponse.json({ error: "invoice_item_create_failed" }, { status: 500 });
+    const { error: eventErr } = await supabase.from("indent_events").insert({
+      indent_id: id,
+      actor_id: actorId!,
+      event_type: "receive",
+      old_value: oldStatus,
+      new_value: "delivered",
+      note: null,
+    });
+    if (eventErr) return NextResponse.json({ error: "event_log_failed" }, { status: 500 });
 
     return NextResponse.json({
       indent: deliveredRow,

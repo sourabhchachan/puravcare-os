@@ -178,6 +178,15 @@ export async function POST(request: Request) {
   if (error || !data) {
     return NextResponse.json({ error: "insert_failed" }, { status: 500 });
   }
+  const { error: eventErr } = await supabase.from("indent_events").insert({
+    indent_id: data.id,
+    actor_id: actorId!,
+    event_type: "created",
+    old_value: null,
+    new_value: "pending",
+    note: null,
+  });
+  if (eventErr) return NextResponse.json({ error: "event_log_failed" }, { status: 500 });
   return NextResponse.json({ indent: data });
 }
 
