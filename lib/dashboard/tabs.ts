@@ -56,7 +56,6 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
       return [
         { href: "/dashboard", label: "Home", icon: IconHome },
         { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
-        { href: "/dashboard/indents", label: "Indent", icon: IconIndent },
         { href: "/dashboard/pending", label: "Pending", icon: IconPending },
         { href: "/dashboard/dispatched", label: "Dispatched", icon: IconTruck },
         { href: "/dashboard/invoices", label: "Invoices", icon: IconInvoice },
