@@ -74,18 +74,21 @@ export default function IndentsPage() {
   }, [load]);
 
   if (loading || !session) return <p className="text-sm text-slate-500">Loading…</p>;
+  const canRaiseIndent = session.role === "ceo" || session.role === "ops" || session.role === "staff";
 
   return (
     <div className="space-y-4 pb-8">
       <div className="flex items-start justify-between gap-2">
         <h1 className="text-xl font-semibold text-slate-900">Indents</h1>
-        <button
-          type="button"
-          onClick={() => setSheetOpen(true)}
-          className="shrink-0 rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white"
-        >
-          Raise indent
-        </button>
+        {canRaiseIndent ? (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="shrink-0 rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white"
+          >
+            Raise indent
+          </button>
+        ) : null}
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
