@@ -71,6 +71,15 @@ export function IconNotice({ className }: IconProps) {
   );
 }
 
+export function IconIndent({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 6h11M4 10h11M4 14h7M4 18h7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15 12h5M18 9l3 3-3 3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function IconPending({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>

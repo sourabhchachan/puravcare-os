@@ -5,6 +5,7 @@ import {
   IconBill,
   IconCashbook,
   IconHome,
+  IconIndent,
   IconInvoice,
   IconNotice,
   IconPending,
@@ -29,6 +30,8 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/patients", label: "Patients", icon: IconPatients },
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
         { href: "/dashboard/cashbook", label: "Cashbook", icon: IconCashbook },
+        { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
+        { href: "/dashboard/indents", label: "Indent", icon: IconIndent },
         { href: "/dashboard/master-bill", label: "Master Bill", icon: IconBill },
       ];
     case "ops":
@@ -37,17 +40,23 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/patients", label: "Patients", icon: IconPatients },
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
         { href: "/dashboard/cashbook", label: "Cashbook", icon: IconCashbook },
+        { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
+        { href: "/dashboard/indents", label: "Indent", icon: IconIndent },
         { href: "/dashboard/vendors", label: "Vendors", icon: IconVendors },
       ];
     case "staff":
       return [
         { href: "/dashboard", label: "Home", icon: IconHome },
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
+        { href: "/dashboard/cashbook", label: "Cashbook", icon: IconCashbook },
         { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
+        { href: "/dashboard/indents", label: "Indent", icon: IconIndent },
       ];
     case "vendor":
       return [
         { href: "/dashboard", label: "Home", icon: IconHome },
+        { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
+        { href: "/dashboard/indents", label: "Indent", icon: IconIndent },
         { href: "/dashboard/pending", label: "Pending", icon: IconPending },
         { href: "/dashboard/dispatched", label: "Dispatched", icon: IconTruck },
         { href: "/dashboard/invoices", label: "Invoices", icon: IconInvoice },
