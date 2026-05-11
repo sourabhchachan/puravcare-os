@@ -43,7 +43,6 @@ type PostBody = {
   task_type?: string;
   is_active?: boolean;
   psi_node_id?: string | null;
-  recurrence?: string;
 };
 
 export async function POST(request: Request) {
@@ -66,11 +65,6 @@ export async function POST(request: Request) {
   if (!taskType || !["ops", "clinical"].includes(taskType)) {
     return NextResponse.json({ error: "invalid_type" }, { status: 400 });
   }
-  const recurrence = (body.recurrence ?? "one-time").trim();
-  if (!["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly", "monthly", "yearly"].includes(recurrence)) {
-    return NextResponse.json({ error: "invalid_recurrence" }, { status: 400 });
-  }
-
   const psiNodeId = body.psi_node_id?.trim() || null;
   const supabase = createServiceClient();
   if (psiNodeId) {
@@ -92,7 +86,6 @@ export async function POST(request: Request) {
       task_type: taskType,
       is_active: body.is_active !== false,
       psi_node_id: psiNodeId,
-      recurrence,
       created_by: actorId!,
     })
     .select("*")

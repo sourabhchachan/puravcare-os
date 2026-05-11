@@ -12,10 +12,8 @@ type Template = {
   task_type: string;
   is_active: boolean;
   psi_node_id: string | null;
-  recurrence: string;
 };
 type PsiOpt = { id: string; title: string };
-const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly", "monthly", "yearly"] as const;
 
 function typeLabel(t: string) {
   return normalizeTemplateTaskType(t) === "clinical" ? "Clinical" : "Ops";
@@ -178,9 +176,6 @@ function TemplateSheet({
   );
   const [active, setActive] = useState(initial?.is_active ?? true);
   const [psiNodeId, setPsiNodeId] = useState(initial?.psi_node_id ?? "");
-  const [recurrence, setRecurrence] = useState<(typeof RECURRENCE)[number]>(
-    ((initial?.recurrence ?? "one-time") as (typeof RECURRENCE)[number]),
-  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -189,7 +184,7 @@ function TemplateSheet({
     setError("");
     setSaving(true);
     try {
-      const body = { title, task_type: taskType, is_active: active, psi_node_id: psiNodeId || null, recurrence };
+      const body = { title, task_type: taskType, is_active: active, psi_node_id: psiNodeId || null };
       const isNew = !initial;
       const res = isNew
         ? await fetch("/api/task-master", {
@@ -255,20 +250,6 @@ function TemplateSheet({
               {psiNodes.map((n) => (
                 <option key={n.id} value={n.id}>
                   {n.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Recurrence</label>
-            <select
-              value={recurrence}
-              onChange={(e) => setRecurrence(e.target.value as (typeof RECURRENCE)[number])}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            >
-              {RECURRENCE.map((r) => (
-                <option key={r} value={r}>
-                  {r}
                 </option>
               ))}
             </select>
