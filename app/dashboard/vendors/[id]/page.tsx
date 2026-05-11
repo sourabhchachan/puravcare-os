@@ -13,12 +13,13 @@ type VendorRow = {
   name: string;
   category: string | null;
   phone: string | null;
-  user_id: string | null;
   is_active: boolean;
 };
 
 type IndentPreview = { id: string; item_description: string; status: string; created_at: string };
 type ItemRow = { id: string; name: string; price: number; is_active: boolean };
+type LinkedUser = { id: string; full_name: string; login_id: string };
+type UserOpt = { id: string; full_name: string; login_id: string; role: string; is_active: boolean };
 
 function indentBadge(status: string) {
   if (status === "pending") return "bg-yellow-100 text-yellow-900";
@@ -36,10 +37,13 @@ export default function VendorDetailPage() {
   const [vendor, setVendor] = useState<VendorRow | null>(null);
   const [indents, setIndents] = useState<IndentPreview[]>([]);
   const [items, setItems] = useState<ItemRow[]>([]);
-  const [linkedLabel, setLinkedLabel] = useState<string | null>(null);
+  const [linkedUsers, setLinkedUsers] = useState<LinkedUser[]>([]);
+  const [vendorUsers, setVendorUsers] = useState<UserOpt[]>([]);
   const [err, setErr] = useState("");
   const [loadingData, setLoadingData] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [addUserOpen, setAddUserOpen] = useState(false);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
 
   const isCeo = session?.role === "ceo";
   const isCeoOrOps = session?.role === "ceo" || session?.role === "ops";
@@ -54,7 +58,7 @@ export default function VendorDetailPage() {
         vendor?: VendorRow;
         indents?: IndentPreview[];
         items?: ItemRow[];
-        linked_user_label?: string | null;
+        linked_users?: LinkedUser[];
         error?: string;
       };
       if (!res.ok) {
@@ -66,7 +70,7 @@ export default function VendorDetailPage() {
       setVendor(data.vendor ?? null);
       setIndents(data.indents ?? []);
       setItems(data.items ?? []);
-      setLinkedLabel(data.linked_user_label ?? null);
+      setLinkedUsers(data.linked_users ?? []);
     } catch {
       setErr("Could not load");
       toast.error("Could not load");
@@ -75,6 +79,47 @@ export default function VendorDetailPage() {
       setLoadingData(false);
     }
   }, [session, id, toast]);
+
+  useEffect(() => {
+    if (!session || !isCeo) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/users", { headers: { "x-actor-id": session.id } });
+        const data = (await res.json()) as { users?: UserOpt[] };
+        if (!res.ok || cancelled) return;
+        setVendorUsers((data.users ?? []).filter((u) => u.role === "vendor" && u.is_active));
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session, isCeo]);
+
+  async function removeLinkedUser(userId: string) {
+    if (!session || !vendor || !isCeo) return;
+    setRemovingUserId(userId);
+    try {
+      const res = await fetch(`/api/vendors/${vendor.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-actor-id": session.id },
+        body: JSON.stringify({ remove_user_id: userId }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not remove user");
+        return;
+      }
+      toast.success("User unlinked");
+      void load();
+    } catch {
+      toast.error("Could not remove user");
+    } finally {
+      setRemovingUserId(null);
+    }
+  }
 
   useEffect(() => {
     void load();
@@ -98,7 +143,6 @@ export default function VendorDetailPage() {
             <h1 className="text-xl font-semibold text-slate-900">{vendor.name}</h1>
             <p className="mt-1 text-sm text-slate-600">{vendor.category ?? "—"}</p>
             <p className="text-sm text-slate-500">{vendor.phone ?? "—"}</p>
-            {linkedLabel ? <p className="mt-2 text-xs text-slate-600">Linked: {linkedLabel}</p> : null}
           </div>
           <span
             className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
@@ -113,6 +157,40 @@ export default function VendorDetailPage() {
             Edit vendor
           </button>
         ) : null}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-slate-800">Linked users</h2>
+          {isCeo ? (
+            <button type="button" onClick={() => setAddUserOpen(true)} className="text-xs font-semibold text-[#2563EB]">
+              Add User
+            </button>
+          ) : null}
+        </div>
+        {linkedUsers.length === 0 ? (
+          <p className="text-sm text-slate-500">No linked users.</p>
+        ) : (
+          <ul className="space-y-2">
+            {linkedUsers.map((u) => (
+              <li key={u.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2">
+                <p className="text-sm text-slate-700">
+                  {u.full_name} <span className="text-slate-500">({u.login_id})</span>
+                </p>
+                {isCeo ? (
+                  <button
+                    type="button"
+                    onClick={() => void removeLinkedUser(u.id)}
+                    disabled={removingUserId === u.id}
+                    className="text-xs font-semibold text-red-600 disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {isCeoOrOps ? (
@@ -178,6 +256,104 @@ export default function VendorDetailPage() {
           }}
         />
       ) : null}
+
+      {addUserOpen && isCeo ? (
+        <AddLinkedUserSheet
+          sessionId={session.id}
+          vendorId={vendor.id}
+          users={vendorUsers}
+          linkedUserIds={new Set(linkedUsers.map((u) => u.id))}
+          onClose={() => setAddUserOpen(false)}
+          onSaved={() => {
+            setAddUserOpen(false);
+            toast.success("User linked");
+            void load();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function AddLinkedUserSheet({
+  sessionId,
+  vendorId,
+  users,
+  linkedUserIds,
+  onClose,
+  onSaved,
+}: {
+  sessionId: string;
+  vendorId: string;
+  users: UserOpt[];
+  linkedUserIds: Set<string>;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [userId, setUserId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const availableUsers = users.filter((u) => !linkedUserIds.has(u.id));
+
+  async function submit() {
+    if (!userId) return;
+    setError("");
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/vendors/${vendorId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
+        body: JSON.stringify({ add_user_id: userId }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Could not link user");
+        toast.error(data.error ?? "Could not link user");
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Could not link user");
+      toast.error("Could not link user");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+      <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
+      <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-[#2563EB]">Add linked user</h2>
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Vendor user</label>
+            <select
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+            >
+              <option value="">Select user</option>
+              {availableUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name} · {u.login_id}
+                </option>
+              ))}
+            </select>
+          </div>
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={saving || !userId}
+            className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Link user"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   if (userId) {
     const { data: u } = await supabase.from("users").select("id, role").eq("id", userId).eq("is_active", true).maybeSingle();
     if (!u || u.role !== "vendor") return NextResponse.json({ error: "invalid_user_link" }, { status: 400 });
-    const { data: taken } = await supabase.from("vendors").select("id").eq("user_id", userId).maybeSingle();
+    const { data: taken } = await supabase.from("vendor_users").select("id").eq("user_id", userId).maybeSingle();
     if (taken) return NextResponse.json({ error: "user_already_linked" }, { status: 400 });
   }
 
@@ -65,12 +65,20 @@ export async function POST(request: Request) {
       name,
       category: (body.category ?? "").trim() || null,
       phone: (body.phone ?? "").trim() || null,
-      user_id: userId,
       is_active: body.is_active !== false,
     })
     .select("*")
     .single();
 
   if (error || !data) return NextResponse.json({ error: "insert_failed" }, { status: 500 });
+
+  if (userId) {
+    const { error: linkError } = await supabase.from("vendor_users").insert({
+      vendor_id: data.id,
+      user_id: userId,
+    });
+    if (linkError) return NextResponse.json({ error: "link_failed" }, { status: 500 });
+  }
+
   return NextResponse.json({ vendor: data });
 }

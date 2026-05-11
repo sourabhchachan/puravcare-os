@@ -9,7 +9,6 @@ type VendorRow = {
   name: string;
   category: string | null;
   phone: string | null;
-  user_id: string | null;
   is_active: boolean;
 };
 
@@ -36,7 +35,7 @@ export function VendorFormSheet({
   const [name, setName] = useState(initial?.name ?? "");
   const [category, setCategory] = useState(initial?.category ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
-  const [userId, setUserId] = useState(initial?.user_id ?? "");
+  const [userId, setUserId] = useState("");
   const [isActive, setIsActive] = useState(initial?.is_active !== false);
   const [vendorUsers, setVendorUsers] = useState<UserOpt[]>([]);
   const [error, setError] = useState("");
@@ -66,7 +65,6 @@ export function VendorFormSheet({
       setName(initial.name);
       setCategory(initial.category ?? "");
       setPhone(initial.phone ?? "");
-      setUserId(initial.user_id ?? "");
       setIsActive(initial.is_active);
     }
   }, [initial]);
@@ -102,7 +100,6 @@ export function VendorFormSheet({
             name,
             category,
             phone,
-            user_id: userId || null,
             is_active: isActive,
           }),
         });
@@ -155,9 +152,9 @@ export function VendorFormSheet({
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
             />
           </div>
-          {isCeo ? (
+          {isCeo && mode === "create" ? (
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Link user (vendor role, optional)</label>
+              <label className="mb-1 block text-xs font-medium text-slate-600">First linked user (vendor role, optional)</label>
               <select
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
