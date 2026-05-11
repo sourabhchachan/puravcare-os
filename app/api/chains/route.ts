@@ -132,15 +132,15 @@ export async function POST(request: Request) {
     chain_id: chain.id as string,
     task_id: null as string | null,
     task_master_id: (step.task_master_id ?? "").trim(),
-    default_assignee_role: step.default_assignee_role?.trim() || null,
     step_order: i + 1,
     status: "waiting" as const,
   }));
 
   const { error: sErr } = await supabase.from("task_chain_steps").insert(stepRows);
   if (sErr) {
+    console.error("[chains] steps insert failed", JSON.stringify(sErr));
     await supabase.from("task_chains").delete().eq("id", chain.id);
-    return NextResponse.json({ error: "steps_failed" }, { status: 500 });
+    return NextResponse.json({ error: "steps_failed", detail: sErr.message }, { status: 500 });
   }
 
   return NextResponse.json({ chain });
