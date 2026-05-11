@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { normalizeTemplateTaskType } from "@/lib/task/taskTypes";
 
 type UserOpt = { id: string; full_name: string; role: string };
-type PatientOpt = { id: string; full_name: string; uhid: string };
+type PatientOpt = { id: string; full_name: string; uhid: string; ipd_number?: string | null };
 type PsiOpt = { id: string; title: string; type: string };
 type TemplateOpt = { id: string; title: string; task_type: "ops" | "clinical"; psi_node_id: string | null };
 
@@ -216,7 +216,7 @@ export default function NewTaskPage() {
               <option value="">Select patient</option>
               {patients.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.full_name} ({p.uhid})
+                  {(p.ipd_number ?? p.uhid)} · {p.full_name}
                 </option>
               ))}
             </select>

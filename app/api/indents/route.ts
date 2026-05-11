@@ -8,7 +8,6 @@ type PostBody = {
   item_id?: string;
   quantity?: number | null;
   priority?: string;
-  ipd_number?: string | null;
   patient_id?: string | null;
 };
 
@@ -39,12 +38,18 @@ export async function GET(request: Request) {
     query = query.eq("created_by", actorId!);
   }
 
-  const [{ data: indents, error: indentsError }, { data: items, error: itemsError }] = await Promise.all([
+  const [{ data: indents, error: indentsError }, { data: items, error: itemsError }, { data: patients, error: patientsError }] = await Promise.all([
     query,
     supabase.from("items").select("id, name, vendor_id").eq("is_active", true).not("vendor_id", "is", null).order("name"),
+    supabase
+      .from("patients")
+      .select("id, full_name, ipd_number, uhid")
+      .eq("status", "active")
+      .eq("admission_type", "ipd")
+      .order("full_name"),
   ]);
 
-  if (indentsError || itemsError) {
+  if (indentsError || itemsError || patientsError) {
     return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
   }
 
@@ -92,6 +97,11 @@ export async function GET(request: Request) {
       vendor_id: row.vendor_id,
       vendor_name: vendorNames.get(row.vendor_id as string) ?? "—",
     })),
+    patients: (patients ?? []).map((p) => ({
+      id: p.id,
+      full_name: p.full_name,
+      ipd_number: (p.ipd_number as string | null) ?? (p.uhid as string | null) ?? "",
+    })),
   });
 }
 
@@ -138,18 +148,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "item_without_vendor" }, { status: 400 });
   }
 
-  const ipdNumber = (body.ipd_number ?? "").trim();
-  let patientId: string | null = body.patient_id?.trim() || null;
-  if (ipdNumber) {
-    const { data: patient } = await supabase
-      .from("patients")
-      .select("id")
-      .eq("ipd_number", ipdNumber)
-      .eq("status", "active")
-      .maybeSingle();
-    if (!patient) return NextResponse.json({ error: "invalid_ipd_number" }, { status: 400 });
-    patientId = patient.id as string;
+  const patientId = body.patient_id?.trim() || null;
+  if (!patientId) {
+    return NextResponse.json({ error: "missing_patient_id" }, { status: 400 });
   }
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("id")
+    .eq("id", patientId)
+    .eq("status", "active")
+    .eq("admission_type", "ipd")
+    .maybeSingle();
+  if (!patient) return NextResponse.json({ error: "invalid_patient" }, { status: 400 });
 
   const { data, error } = await supabase
     .from("indents")

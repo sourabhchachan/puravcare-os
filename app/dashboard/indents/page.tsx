@@ -26,6 +26,12 @@ type ItemOpt = {
   vendor_name: string;
 };
 
+type PatientOpt = {
+  id: string;
+  full_name: string;
+  ipd_number: string;
+};
+
 function statusBadge(status: string) {
   if (status === "pending") return "bg-yellow-100 text-yellow-900";
   if (status === "dispatched") return "bg-blue-100 text-blue-800";
@@ -57,6 +63,7 @@ export default function IndentsPage() {
   const [error, setError] = useState("");
   const [indents, setIndents] = useState<IndentRow[]>([]);
   const [items, setItems] = useState<ItemOpt[]>([]);
+  const [patients, setPatients] = useState<PatientOpt[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [blockIndentId, setBlockIndentId] = useState<string | null>(null);
   const [cancelIndentId, setCancelIndentId] = useState<string | null>(null);
@@ -67,7 +74,7 @@ export default function IndentsPage() {
     setError("");
     try {
       const res = await fetch("/api/indents", { headers: { "x-actor-id": session.id } });
-      const data = (await res.json()) as { indents?: IndentRow[]; items?: ItemOpt[]; error?: string };
+      const data = (await res.json()) as { indents?: IndentRow[]; items?: ItemOpt[]; patients?: PatientOpt[]; error?: string };
       if (!res.ok) {
         setError(data.error ?? "Could not load indents");
         toast.error(data.error ?? "Could not load indents");
@@ -75,6 +82,7 @@ export default function IndentsPage() {
       }
       setIndents(data.indents ?? []);
       setItems(data.items ?? []);
+      setPatients(data.patients ?? []);
     } catch {
       setError("Could not load indents");
       toast.error("Could not load indents");
@@ -164,6 +172,7 @@ export default function IndentsPage() {
         <RaiseIndentSheet
           sessionId={session.id}
           items={items}
+          patients={patients}
           onClose={() => setSheetOpen(false)}
           onSaved={() => {
             setSheetOpen(false);
@@ -215,11 +224,13 @@ export default function IndentsPage() {
 function RaiseIndentSheet({
   sessionId,
   items,
+  patients,
   onClose,
   onSaved,
 }: {
   sessionId: string;
   items: ItemOpt[];
+  patients: PatientOpt[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -227,7 +238,7 @@ function RaiseIndentSheet({
   const [itemId, setItemId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [priority, setPriority] = useState<"critical" | "high" | "medium" | "low">("medium");
-  const [ipdNumber, setIpdNumber] = useState("");
+  const [patientId, setPatientId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -239,7 +250,7 @@ function RaiseIndentSheet({
       const res = await fetch("/api/indents", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
-        body: JSON.stringify({ item_id: itemId, quantity: Number(quantity), priority, ipd_number: ipdNumber || null }),
+        body: JSON.stringify({ item_id: itemId, quantity: Number(quantity), priority, patient_id: patientId }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -305,18 +316,25 @@ function RaiseIndentSheet({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Patient IPD Number (optional)</label>
-            <input
-              value={ipdNumber}
-              onChange={(e) => setIpdNumber(e.target.value)}
-              placeholder="IPD-XXXX"
+            <label className="mb-1 block text-xs font-medium text-slate-600">Patient IPD Number</label>
+            <select
+              value={patientId}
+              onChange={(e) => setPatientId(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
-            />
+              required
+            >
+              <option value="">Select patient</option>
+              {patients.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.ipd_number} · {p.full_name}
+                </option>
+              ))}
+            </select>
           </div>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <button
             type="submit"
-            disabled={saving || !itemId || !quantity}
+            disabled={saving || !itemId || !quantity || !patientId}
             className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}

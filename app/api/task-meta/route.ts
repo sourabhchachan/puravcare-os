@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     supabase.from("users").select("id, full_name, role").eq("is_active", true).order("full_name"),
     supabase
       .from("patients")
-      .select("id, full_name, uhid")
+      .select("id, full_name, uhid, ipd_number")
       .eq("status", "active")
       .eq("admission_type", "ipd")
       .order("full_name"),
