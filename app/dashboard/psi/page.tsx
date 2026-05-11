@@ -96,6 +96,7 @@ export default function PsiPage() {
   const [sheet, setSheet] = useState<{ kind: "problem" } | { kind: "solution" | "indicator"; parentId: string } | null>(
     null,
   );
+  const [editNode, setEditNode] = useState<PsiNode | null>(null);
 
   const load = useCallback(async () => {
     if (!session) return;
@@ -193,6 +194,7 @@ export default function PsiPage() {
             toast={toast}
             onProposeSolution={() => setSheet({ kind: "solution", parentId: n.id })}
             onProposeIndicator={(solutionId) => setSheet({ kind: "indicator", parentId: solutionId })}
+            onEditNode={(nodeToEdit) => setEditNode(nodeToEdit)}
             onApproved={() => void load()}
           />
         ))}
@@ -211,6 +213,17 @@ export default function PsiPage() {
           }}
         />
       ) : null}
+      {editNode ? (
+        <EditPsiSheet
+          sessionId={session.id}
+          node={editNode}
+          onClose={() => setEditNode(null)}
+          onSaved={() => {
+            setEditNode(null);
+            void load();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -224,6 +237,7 @@ function PsiTreeNode({
   toast,
   onProposeSolution,
   onProposeIndicator,
+  onEditNode,
   onApproved,
 }: {
   node: TreeNode;
@@ -234,6 +248,7 @@ function PsiTreeNode({
   toast: ToastApi;
   onProposeSolution: () => void;
   onProposeIndicator: (solutionId: string) => void;
+  onEditNode: (node: PsiNode) => void;
   onApproved: () => void;
 }) {
   const isOpen = expanded[node.id] !== false;
@@ -278,6 +293,15 @@ function PsiTreeNode({
           {node.type === "solution" && node.status !== "rejected" ? (
             <button type="button" onClick={() => onProposeIndicator(node.id)} className="mt-2 text-xs font-medium text-[#2563EB]">
               + Propose indicator
+            </button>
+          ) : null}
+          {isCeo ? (
+            <button
+              type="button"
+              onClick={() => onEditNode(node)}
+              className="mt-2 ml-2 text-xs font-medium text-[#2563EB]"
+            >
+              Edit
             </button>
           ) : null}
           {isCeo && node.status === "proposed" ? (
@@ -334,12 +358,95 @@ function PsiTreeNode({
               toast={toast}
               onProposeSolution={() => {}}
               onProposeIndicator={onProposeIndicator}
+              onEditNode={onEditNode}
               onApproved={onApproved}
             />
           ))}
         </ul>
       ) : null}
     </li>
+  );
+}
+
+function EditPsiSheet({
+  sessionId,
+  node,
+  onClose,
+  onSaved,
+}: {
+  sessionId: string;
+  node: PsiNode;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [title, setTitle] = useState(node.title);
+  const [description, setDescription] = useState(node.description ?? "");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/psi/${node.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
+        body: JSON.stringify({ action: "edit", title, description }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Could not save");
+        toast.error(data.error ?? "Could not save");
+        return;
+      }
+      toast.success("Node updated");
+      onSaved();
+    } catch {
+      setError("Could not save");
+      toast.error("Could not save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+      <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
+      <div className="mx-auto max-h-[90vh] w-full max-w-[430px] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-[#2563EB]">Edit {node.type}</h2>
+        <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Title</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Description (optional)</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+            />
+          </div>
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={saving || !title.trim()}
+            className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
 

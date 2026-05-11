@@ -6,6 +6,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 
 type PatchBody = {
   action?: string;
+  title?: string;
+  description?: string | null;
 };
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -27,17 +29,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const action = body.action;
-  if (!["approve", "reject", "deactivate", "reactivate"].includes(action ?? "")) {
+  if (!["approve", "reject", "deactivate", "reactivate", "edit"].includes(action ?? "")) {
     return NextResponse.json({ error: "invalid_action" }, { status: 400 });
   }
 
   const supabase = createServiceClient();
-  const { data: row, error: fetchErr } = await supabase
-    .from("psi_nodes")
-    .select("id, status, is_active")
-    .eq("id", id)
-    .maybeSingle();
+  const { data: row, error: fetchErr } = await supabase.from("psi_nodes").select("id, status, is_active").eq("id", id).maybeSingle();
   if (fetchErr || !row) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (action === "edit") {
+    const title = (body.title ?? "").trim();
+    if (!title) return NextResponse.json({ error: "missing_title" }, { status: 400 });
+    const { data, error } = await supabase
+      .from("psi_nodes")
+      .update({
+        title,
+        description: (body.description ?? "").trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error || !data) return NextResponse.json({ error: "update_failed" }, { status: 500 });
+    return NextResponse.json({ node: data });
+  }
   if (action === "approve" || action === "reject") {
     if (row.status !== "proposed") {
       return NextResponse.json({ error: "not_proposed" }, { status: 400 });
