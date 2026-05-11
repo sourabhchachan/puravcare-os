@@ -129,7 +129,7 @@ export default function ChainTemplatesPage() {
   );
 }
 
-type TemplateOpt = { id: string; title: string; task_type: string };
+type TemplateOpt = { id: string; title: string; task_type: string; is_active?: boolean };
 
 type StepDraft = { task_master_id: string; default_assignee_role: string };
 
@@ -168,7 +168,7 @@ function NewChainSheet({
         const data = (await res.json()) as { templates?: TemplateOpt[] };
         if (!res.ok || cancelled) return;
         const list = data.templates ?? [];
-        setTemplateOptions(list.filter((t) => Boolean(t.id)));
+        setTemplateOptions(list.filter((t) => Boolean(t.id) && t.is_active !== false));
       } catch {
         /* ignore */
       }
@@ -208,22 +208,25 @@ function NewChainSheet({
     setError("");
     setSaving(true);
     try {
+      const payload = {
+        title: title.trim(),
+        chain_type: chainType,
+        steps: steps.map((step) => ({
+          task_master_id: step.task_master_id.trim(),
+          default_assignee_role: step.default_assignee_role.trim() || null,
+        })),
+      };
       const res = await fetch("/api/chains", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
-        body: JSON.stringify({
-          title,
-          chain_type: chainType,
-          steps: steps.map((s) => ({
-            task_master_id: s.task_master_id,
-            default_assignee_role: s.default_assignee_role || null,
-          })),
-        }),
+        body: JSON.stringify(payload),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
-        setError(data.error ?? "Could not save");
-        toast.error(data.error ?? "Could not save");
+        console.error("[chain-templates] create failed", { error: data.error, payload: { title, chainType, steps } });
+        const msg = data.error === "invalid_task_master" ? "Selected task template is inactive. Please pick an active template." : (data.error ?? "Could not save");
+        setError(msg);
+        toast.error(msg);
         return;
       }
       onSaved();
