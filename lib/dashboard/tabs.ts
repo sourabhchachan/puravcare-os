@@ -4,7 +4,9 @@ import type { UserRole } from "@/lib/auth/types";
 import {
   IconBill,
   IconCashbook,
+  IconHome,
   IconInvoice,
+  IconNotice,
   IconPending,
   IconPatients,
   IconPulse,
@@ -31,6 +33,7 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
       ];
     case "ops":
       return [
+        { href: "/dashboard", label: "Home", icon: IconHome },
         { href: "/dashboard/patients", label: "Patients", icon: IconPatients },
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
         { href: "/dashboard/cashbook", label: "Cashbook", icon: IconCashbook },
@@ -38,12 +41,13 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
       ];
     case "staff":
       return [
-        { href: "/dashboard/patients", label: "Patients", icon: IconPatients },
+        { href: "/dashboard", label: "Home", icon: IconHome },
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
-        { href: "/dashboard/cashbook", label: "Cashbook", icon: IconCashbook },
+        { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
       ];
     case "vendor":
       return [
+        { href: "/dashboard", label: "Home", icon: IconHome },
         { href: "/dashboard/pending", label: "Pending", icon: IconPending },
         { href: "/dashboard/dispatched", label: "Dispatched", icon: IconTruck },
         { href: "/dashboard/invoices", label: "Invoices", icon: IconInvoice },
