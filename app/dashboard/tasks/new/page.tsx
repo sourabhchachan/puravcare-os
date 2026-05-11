@@ -13,7 +13,7 @@ type PatientOpt = { id: string; full_name: string; uhid: string };
 type PsiOpt = { id: string; title: string; type: string };
 type TemplateOpt = { id: string; title: string; task_type: "ops" | "clinical"; psi_node_id: string | null };
 
-const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly"] as const;
+const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly", "monthly", "yearly"] as const;
 
 type CreateTaskErrorBody = {
   error?: string;

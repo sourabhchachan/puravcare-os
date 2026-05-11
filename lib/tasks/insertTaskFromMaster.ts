@@ -4,7 +4,7 @@ import { taskTypeForInsertFromTemplate } from "@/lib/task/taskTypes";
 
 type Supabase = ReturnType<typeof createServiceClient>;
 
-const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly"] as const;
+const RECURRENCE = ["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly", "monthly", "yearly"] as const;
 
 /** Extra context when `tasks.insert` fails (RLS, CHECK constraint, FK, etc.). */
 export type SupabaseInsertErrorInfo = {

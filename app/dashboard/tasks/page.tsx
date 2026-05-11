@@ -27,6 +27,8 @@ const BASE_FILTERS = [
 ] as const;
 
 type FilterId = (typeof BASE_FILTERS)[number]["id"] | "unlinked";
+type SortBy = "due_date" | "priority" | "assignee";
+const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, normal: 2, low: 3 };
 
 function EmptyIcon({ className }: { className?: string }) {
   return (
@@ -79,6 +81,7 @@ function TasksListInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [filter, setFilter] = useState<FilterId>("all");
+  const [sortBy, setSortBy] = useState<SortBy>("due_date");
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [canCreate, setCanCreate] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -130,6 +133,20 @@ function TasksListInner() {
     void load();
   }, [load]);
 
+  const sortedTasks = useMemo(() => {
+    return [...tasks].sort((a, b) => {
+      if (sortBy === "priority") {
+        return (PRIORITY_ORDER[a.priority] ?? 999) - (PRIORITY_ORDER[b.priority] ?? 999);
+      }
+      if (sortBy === "assignee") {
+        return a.assignee_name.localeCompare(b.assignee_name, undefined, { sensitivity: "base" });
+      }
+      const aDue = a.due_at ? new Date(a.due_at).getTime() : Number.POSITIVE_INFINITY;
+      const bDue = b.due_at ? new Date(b.due_at).getTime() : Number.POSITIVE_INFINITY;
+      return aDue - bDue;
+    });
+  }, [tasks, sortBy]);
+
   if (!session) return null;
 
   return (
@@ -153,19 +170,33 @@ function TasksListInner() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {filters.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => setFilterAndUrl(f.id)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-              filter === f.id ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
-            }`}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          {filters.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilterAndUrl(f.id)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                filter === f.id ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+          <span>Sort by</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
           >
-            {f.label}
-          </button>
-        ))}
+            <option value="due_date">Due Date</option>
+            <option value="priority">Priority</option>
+            <option value="assignee">Assignee</option>
+          </select>
+        </label>
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -176,14 +207,14 @@ function TasksListInner() {
           <div className="pc-skeleton h-24" />
           <div className="pc-skeleton h-24" />
         </div>
-      ) : tasks.length === 0 ? (
+      ) : sortedTasks.length === 0 ? (
         <div className="pc-empty-state">
           <EmptyIcon className="h-8 w-8 text-gray-300" />
           <p className="text-sm text-gray-500">No items yet</p>
         </div>
       ) : (
         <ul className="space-y-3">
-          {tasks.map((t) => (
+          {sortedTasks.map((t) => (
             <li key={t.id}>
               <Link
                 href={`/dashboard/tasks/${t.id}`}

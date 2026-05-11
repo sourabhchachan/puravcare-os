@@ -200,7 +200,7 @@ CREATE TABLE public.task_master (
   task_type text CHECK (task_type IN ('ops', 'clinical', 'patient')),
   default_assignee_role text,
   proof_type text CHECK (proof_type IN ('tap', 'photo', 'countersign')),
-  recurrence text CHECK (recurrence IN ('one-time', 'hourly', '2h', '4h', '6h', '8h', 'daily', 'weekly')),
+  recurrence text CHECK (recurrence IN ('one-time', 'hourly', '2h', '4h', '6h', '8h', 'daily', 'weekly', 'monthly', 'yearly')),
   priority text CHECK (priority IN ('critical', 'high', 'normal', 'low')),
   is_patient_linked boolean NOT NULL DEFAULT false,
   psi_node_id uuid REFERENCES public.psi_nodes (id) ON DELETE SET NULL,
@@ -225,7 +225,7 @@ CREATE TABLE public.tasks (
   priority text CHECK (priority IN ('critical', 'high', 'normal', 'low')),
   proof_type text CHECK (proof_type IN ('tap', 'photo', 'countersign')),
   countersign_user_id uuid REFERENCES public.users (id),
-  recurrence text CHECK (recurrence IN ('one-time', 'hourly', '2h', '4h', '6h', '8h', 'daily', 'weekly')),
+  recurrence text CHECK (recurrence IN ('one-time', 'hourly', '2h', '4h', '6h', '8h', 'daily', 'weekly', 'monthly', 'yearly')),
   status text NOT NULL DEFAULT 'pending' CHECK (
     status IN (
       'pending',

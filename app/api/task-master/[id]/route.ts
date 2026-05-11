@@ -9,6 +9,7 @@ type PatchBody = {
   task_type?: string;
   is_active?: boolean;
   psi_node_id?: string | null;
+  recurrence?: string;
 };
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -30,6 +31,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.task_type === "string") {
     if (!["ops", "clinical"].includes(body.task_type)) return NextResponse.json({ error: "invalid_type" }, { status: 400 });
     updates.task_type = body.task_type;
+  }
+  if (typeof body.recurrence === "string") {
+    const recurrence = body.recurrence.trim();
+    if (!["one-time", "hourly", "2h", "4h", "6h", "8h", "daily", "weekly", "monthly", "yearly"].includes(recurrence)) {
+      return NextResponse.json({ error: "invalid_recurrence" }, { status: 400 });
+    }
+    updates.recurrence = recurrence;
   }
   if (typeof body.is_active === "boolean") updates.is_active = body.is_active;
   if (body.psi_node_id !== undefined) {
