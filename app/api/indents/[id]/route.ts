@@ -70,8 +70,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (action === "dispatch") {
     if (row.status !== "pending") return NextResponse.json({ error: "invalid_state" }, { status: 400 });
     if (role === "vendor") {
-      const { data: v } = await supabase.from("vendors").select("user_id").eq("id", vendorId).maybeSingle();
-      if (!v || v.user_id !== actorId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      const { data: link } = await supabase.from("vendor_users").select("vendor_id").eq("user_id", actorId!).maybeSingle();
+      if (!link || link.vendor_id !== vendorId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
     } else if (!(await assertCeoOrOps(actorId))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
