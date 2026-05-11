@@ -61,10 +61,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_price" }, { status: 400 });
   }
 
+  const vendorId = body.vendor_id?.trim() || null;
+  if (!vendorId) return NextResponse.json({ error: "missing_vendor" }, { status: 400 });
+
   const supabase = createServiceClient();
 
-  if (body.vendor_id) {
-    const { data: v } = await supabase.from("vendors").select("id").eq("id", body.vendor_id).maybeSingle();
+  {
+    const { data: v } = await supabase.from("vendors").select("id").eq("id", vendorId).maybeSingle();
     if (!v) return NextResponse.json({ error: "invalid_vendor" }, { status: 400 });
   }
 
@@ -73,7 +76,7 @@ export async function POST(request: Request) {
     .insert({
       name,
       price: Number(price),
-      vendor_id: body.vendor_id || null,
+      vendor_id: vendorId,
       is_patient_linked: Boolean(body.is_patient_linked),
       is_active: body.is_active !== false,
       created_by: actorId!,

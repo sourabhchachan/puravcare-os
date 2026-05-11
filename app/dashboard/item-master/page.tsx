@@ -219,13 +219,18 @@ function ItemSheet({
       toast.error("Enter a valid price.");
       return;
     }
+    if (!vendorId) {
+      setError("Vendor is required.");
+      toast.error("Vendor is required.");
+      return;
+    }
 
     setSaving(true);
     try {
       const body = {
         name: name.trim(),
         price: priceNum,
-        vendor_id: vendorId || null,
+        vendor_id: vendorId,
         is_patient_linked: patientLinked,
         is_active: active,
       };
@@ -293,13 +298,14 @@ function ItemSheet({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Vendor (optional)</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Vendor</label>
             <select
               value={vendorId}
               onChange={(e) => setVendorId(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              required
             >
-              <option value="">None</option>
+              <option value="">Select vendor</option>
               {vendors.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}

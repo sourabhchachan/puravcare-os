@@ -40,7 +40,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     updates.price = n;
   }
   if ("vendor_id" in body) {
-    updates.vendor_id = body.vendor_id || null;
+    const vendorId = body.vendor_id?.trim() || null;
+    if (!vendorId) return NextResponse.json({ error: "missing_vendor" }, { status: 400 });
+    updates.vendor_id = vendorId;
   }
   if (typeof body.is_patient_linked === "boolean") updates.is_patient_linked = body.is_patient_linked;
   if (typeof body.is_active === "boolean") updates.is_active = body.is_active;
