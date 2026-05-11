@@ -64,6 +64,27 @@ function IconRupee({ className }: { className?: string }) {
   );
 }
 
+function IconTruck({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path
+        d="M3 7h10v8H3zM13 10h4l3 3v2h-7zM7 19a2 2 0 100-4 2 2 0 000 4zM17 19a2 2 0 100-4 2 2 0 000 4z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconCheckCircle({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M22 11.08V12a10 10 0 11-5.93-9.14" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M22 4L12 14.01l-3-3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function IconUnlinked({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -139,11 +160,18 @@ type HomeMetrics = {
   tasks_completed_today?: number;
 };
 
+type VendorStats = {
+  pending: number;
+  dispatched: number;
+  delivered: number;
+};
+
 export default function DashboardHomePage() {
   const { session, loading } = useAuth();
   const toast = useToast();
   const [pulse, setPulse] = useState<Pulse | null>(null);
   const [home, setHome] = useState<HomeMetrics | null>(null);
+  const [vendorStats, setVendorStats] = useState<VendorStats | null>(null);
 
   const title = useMemo(() => {
     if (!session) return "Welcome";
@@ -154,6 +182,34 @@ export default function DashboardHomePage() {
   const loadPulse = useCallback(async () => {
     if (!session) return;
     try {
+      if (session.role === "vendor") {
+        const meRes = await fetch("/api/vendor", { headers: { "x-actor-id": session.id } });
+        const meData = (await meRes.json()) as { vendor?: { id: string } | null };
+        if (!meRes.ok || !meData.vendor?.id) {
+          setVendorStats({ pending: 0, dispatched: 0, delivered: 0 });
+          setPulse(null);
+          setHome(null);
+          return;
+        }
+        const indentsRes = await fetch(`/api/vendors/${meData.vendor.id}/indents`, { headers: { "x-actor-id": session.id } });
+        const indentsData = (await indentsRes.json()) as { indents?: Array<{ status?: string }>; error?: string };
+        if (!indentsRes.ok) {
+          toast.error("Could not load dashboard metrics");
+          return;
+        }
+        const counts: VendorStats = { pending: 0, dispatched: 0, delivered: 0 };
+        for (const indent of indentsData.indents ?? []) {
+          const s = (indent.status ?? "").toLowerCase();
+          if (s === "pending") counts.pending += 1;
+          if (s === "dispatched") counts.dispatched += 1;
+          if (s === "delivered") counts.delivered += 1;
+        }
+        setVendorStats(counts);
+        setPulse(null);
+        setHome(null);
+        return;
+      }
+
       const url = session.role === "ceo" ? "/api/dashboard/pulse" : "/api/dashboard/home";
       const res = await fetch(url, { headers: { "x-actor-id": session.id } });
       const data = (await res.json()) as (Pulse & HomeMetrics) & { error?: string };
@@ -180,6 +236,7 @@ export default function DashboardHomePage() {
         tasks_completed_today: data.tasks_completed_today,
       });
       setPulse(null);
+      setVendorStats(null);
     } catch {
       toast.error("Could not load dashboard metrics");
     }
@@ -201,6 +258,7 @@ export default function DashboardHomePage() {
 
   const p = pulse;
   const h = home;
+  const v = vendorStats;
 
   if (session.role === "ceo") {
     return (
@@ -347,6 +405,48 @@ export default function DashboardHomePage() {
             value={h ? (h.tasks_completed_today ?? 0) : "—"}
           />
         </div>
+      </div>
+    );
+  }
+
+  if (session.role === "vendor") {
+    return (
+      <div className="space-y-5">
+        <section className="-mx-4 rounded-b-3xl bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-5">
+          <h1 className="text-2xl font-bold text-white">{title}</h1>
+          <p className="mt-1 text-sm text-blue-200">{dateLabel}</p>
+        </section>
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Vendor Overview</p>
+        <div className="space-y-3">
+          <PulseCard
+            href="/dashboard/pending"
+            icon={<IconAlert className="h-6 w-6 text-white" />}
+            iconTone="bg-gradient-to-br from-yellow-500 to-yellow-700"
+            label="Pending Indents"
+            value={v ? v.pending : "—"}
+          />
+          <PulseCard
+            href="/dashboard/dispatched"
+            icon={<IconTruck className="h-6 w-6 text-white" />}
+            iconTone="bg-gradient-to-br from-blue-500 to-blue-700"
+            label="Dispatched Indents"
+            value={v ? v.dispatched : "—"}
+          />
+          <PulseCard
+            href="/dashboard/dispatched"
+            icon={<IconCheckCircle className="h-6 w-6 text-white" />}
+            iconTone="bg-gradient-to-br from-green-500 to-green-700"
+            label="Delivered Indents"
+            value={v ? v.delivered : "—"}
+          />
+        </div>
+        <Link
+          href="/dashboard/pending"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-600"
+        >
+          <IconAlert className="h-4 w-4" />
+          Go to Pending
+        </Link>
       </div>
     );
   }
