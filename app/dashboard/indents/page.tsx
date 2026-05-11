@@ -494,7 +494,6 @@ function ReasonSheet({
   sessionId,
   indentId,
   action,
-  reasonKey,
   onClose,
   onSaved,
 }: {
