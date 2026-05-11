@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -16,6 +16,7 @@ type IndentRow = {
   raised_by_name: string;
   created_by: string | null;
   created_at: string;
+  received_at?: string | null;
   vendor_name?: string;
 };
 
@@ -67,6 +68,14 @@ export default function IndentsPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [blockIndentId, setBlockIndentId] = useState<string | null>(null);
   const [cancelIndentId, setCancelIndentId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [vendorFilter, setVendorFilter] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [searchIpd, setSearchIpd] = useState("");
+  const [searchItem, setSearchItem] = useState("");
+  const [searchRaisedBy, setSearchRaisedBy] = useState("");
+  const [sortBy, setSortBy] = useState("date_newest");
 
   const load = useCallback(async () => {
     if (!session) return;
@@ -95,6 +104,62 @@ export default function IndentsPage() {
     void load();
   }, [load]);
 
+  const vendorOptions = useMemo(() => {
+    const names = [...new Set(indents.map((i) => (i.vendor_name ?? "").trim()).filter(Boolean))];
+    return names.sort((a, b) => a.localeCompare(b));
+  }, [indents]);
+
+  const shownIndents = useMemo(() => {
+    const ipdNeedle = searchIpd.trim().toLowerCase();
+    const itemNeedle = searchItem.trim().toLowerCase();
+    const raisedNeedle = searchRaisedBy.trim().toLowerCase();
+    const fromTs = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
+    const toTs = toDate ? new Date(`${toDate}T23:59:59.999`).getTime() : null;
+    const priorityRank: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+
+    const filtered = indents.filter((i) => {
+      if (statusFilter !== "all" && i.status !== statusFilter) return false;
+      if (vendorFilter !== "all" && (i.vendor_name ?? "—") !== vendorFilter) return false;
+      if (ipdNeedle && !(i.ipd_number ?? "").toLowerCase().includes(ipdNeedle)) return false;
+      if (itemNeedle && !(i.item_description ?? "").toLowerCase().includes(itemNeedle)) return false;
+      if (raisedNeedle && !(i.raised_by_name ?? "").toLowerCase().includes(raisedNeedle)) return false;
+      const createdTs = new Date(i.created_at).getTime();
+      if (fromTs != null && createdTs < fromTs) return false;
+      if (toTs != null && createdTs > toTs) return false;
+      return true;
+    });
+
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      if (sortBy === "date_oldest") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      if (sortBy === "item_az") return a.item_description.localeCompare(b.item_description);
+      if (sortBy === "vendor_az") return (a.vendor_name ?? "").localeCompare(b.vendor_name ?? "");
+      if (sortBy === "priority") return (priorityRank[a.priority] ?? 99) - (priorityRank[b.priority] ?? 99);
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    return sorted;
+  }, [fromDate, indents, searchIpd, searchItem, searchRaisedBy, sortBy, statusFilter, toDate, vendorFilter]);
+
+  async function markReceived(indentId: string) {
+    if (!session) return;
+    try {
+      const res = await fetch(`/api/indents/${indentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-actor-id": session.id },
+        body: JSON.stringify({ action: "receive" }),
+      });
+      const data = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not mark indent as received");
+        return;
+      }
+      toast.success(data.message ?? "Marked received");
+      void load();
+    } catch {
+      toast.error("Could not mark indent as received");
+    }
+  }
+
   if (loading || !session) return <p className="text-sm text-slate-500">Loading…</p>;
   const canRaiseIndent = session.role === "ceo" || session.role === "ops" || session.role === "staff";
 
@@ -115,19 +180,88 @@ export default function IndentsPage() {
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
+      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="dispatched">Dispatched</option>
+            <option value="delivered">Delivered</option>
+            <option value="blocked">Blocked</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <select
+            value={vendorFilter}
+            onChange={(e) => setVendorFilter(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="all">All vendors</option>
+            {vendorOptions.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <input
+            type="text"
+            placeholder="Search IPD number"
+            value={searchIpd}
+            onChange={(e) => setSearchIpd(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <input
+            type="text"
+            placeholder="Search item name"
+            value={searchItem}
+            onChange={(e) => setSearchItem(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <input
+            type="text"
+            placeholder="Search raised by"
+            value={searchRaisedBy}
+            onChange={(e) => setSearchRaisedBy(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <option value="date_newest">Date: newest first</option>
+            <option value="date_oldest">Date: oldest first</option>
+            <option value="item_az">Item: A-Z</option>
+            <option value="vendor_az">Vendor: A-Z</option>
+            <option value="priority">Priority</option>
+          </select>
+        </div>
+      </div>
+
       {loadingData ? (
         <div className="space-y-3">
           <div className="pc-skeleton h-24" />
           <div className="pc-skeleton h-24" />
           <div className="pc-skeleton h-24" />
         </div>
-      ) : indents.length === 0 ? (
+      ) : shownIndents.length === 0 ? (
         <div className="pc-empty-state">
-          <p className="text-sm text-gray-500">No indents yet</p>
+          <p className="text-sm text-gray-500">No indents match your filters</p>
         </div>
       ) : (
         <ul className="space-y-3">
-          {indents.map((i) => (
+          {shownIndents.map((i) => (
             <li key={i.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -143,6 +277,7 @@ export default function IndentsPage() {
               <p className="mt-1 text-xs text-slate-600">IPD: {i.ipd_number ?? "—"}</p>
               <p className="mt-1 text-xs text-slate-600">Raised by: {i.raised_by_name ?? "—"}</p>
               <p className="mt-1 text-xs text-slate-500">Vendor: {i.vendor_name ?? "—"}</p>
+              {i.status === "delivered" ? <p className="mt-1 text-xs text-slate-500">Received at: {i.received_at ? formatDt(i.received_at) : "—"}</p> : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 {session.role === "vendor" && (i.status === "pending" || i.status === "dispatched") ? (
                   <button
@@ -160,6 +295,15 @@ export default function IndentsPage() {
                     className="rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-700"
                   >
                     Cancel
+                  </button>
+                ) : null}
+                {(session.role === "ceo" || session.role === "ops" || i.created_by === session.id) && i.status === "dispatched" ? (
+                  <button
+                    type="button"
+                    onClick={() => void markReceived(i.id)}
+                    className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-semibold text-white"
+                  >
+                    Mark Received
                   </button>
                 ) : null}
               </div>
@@ -190,7 +334,6 @@ export default function IndentsPage() {
           sessionId={session.id}
           indentId={blockIndentId}
           action="block"
-          reasonKey="block_reason"
           onClose={() => setBlockIndentId(null)}
           onSaved={() => {
             setBlockIndentId(null);
@@ -208,7 +351,6 @@ export default function IndentsPage() {
           sessionId={session.id}
           indentId={cancelIndentId}
           action="cancel"
-          reasonKey="cancel_reason"
           onClose={() => setCancelIndentId(null)}
           onSaved={() => {
             setCancelIndentId(null);
@@ -362,7 +504,6 @@ function ReasonSheet({
   sessionId: string;
   indentId: string;
   action: "block" | "cancel";
-  reasonKey: "block_reason" | "cancel_reason";
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -376,10 +517,10 @@ function ReasonSheet({
     setError("");
     setSaving(true);
     try {
-      const res = await fetch("/api/indents", {
+      const res = await fetch(`/api/indents/${indentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
-        body: JSON.stringify({ indent_id: indentId, action, [reasonKey]: reason }),
+        body: JSON.stringify({ action, reason }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
