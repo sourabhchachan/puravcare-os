@@ -79,8 +79,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (addUserId && removeUserId) return NextResponse.json({ error: "invalid_action" }, { status: 400 });
 
   if (addUserId) {
-    const { data: u } = await supabase.from("users").select("id, role").eq("id", addUserId).eq("is_active", true).maybeSingle();
-    if (!u || u.role !== "vendor") return NextResponse.json({ error: "invalid_user_link" }, { status: 400 });
+    const { data: u } = await supabase.from("users").select("id").eq("id", addUserId).eq("is_active", true).maybeSingle();
+    if (!u) return NextResponse.json({ error: "invalid_user_link" }, { status: 400 });
     const { data: taken } = await supabase.from("vendor_users").select("id, vendor_id").eq("user_id", addUserId).maybeSingle();
     if (taken && taken.vendor_id !== id) return NextResponse.json({ error: "user_already_linked" }, { status: 400 });
     if (!taken) {

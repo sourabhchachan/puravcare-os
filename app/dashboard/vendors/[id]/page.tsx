@@ -88,7 +88,7 @@ export default function VendorDetailPage() {
         const res = await fetch("/api/users", { headers: { "x-actor-id": session.id } });
         const data = (await res.json()) as { users?: UserOpt[] };
         if (!res.ok || cancelled) return;
-        setVendorUsers((data.users ?? []).filter((u) => u.role === "vendor" && u.is_active));
+        setVendorUsers((data.users ?? []).filter((u) => u.is_active));
       } catch {
         /* ignore */
       }
@@ -329,7 +329,7 @@ function AddLinkedUserSheet({
         <h2 className="text-lg font-semibold text-[#2563EB]">Add linked user</h2>
         <div className="mt-4 space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Vendor user</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">User</label>
             <select
               value={userId}
               onChange={(e) => setUserId(e.target.value)}

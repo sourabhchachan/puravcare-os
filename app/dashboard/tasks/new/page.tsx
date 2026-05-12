@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useToast } from "@/components/ui/ToastProvider";
+import { IdCombobox } from "@/components/ui/IdCombobox";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { normalizeTemplateTaskType } from "@/lib/task/taskTypes";
 
@@ -58,6 +59,20 @@ export default function NewTaskPage() {
   const selectedTemplate = useMemo(
     () => templates.find((t) => t.id === taskMasterId) ?? null,
     [templates, taskMasterId],
+  );
+
+  const templateOptions = useMemo(
+    () =>
+      templates.map((t) => ({
+        id: t.id,
+        label: `${t.title} (${t.task_type === "clinical" ? "Clinical" : "Ops"})`,
+      })),
+    [templates],
+  );
+
+  const assigneeOptions = useMemo(
+    () => users.map((u) => ({ id: u.id, label: `${u.full_name} (${u.role})` })),
+    [users],
   );
 
   const isClinical = selectedTemplate?.task_type === "clinical";
@@ -188,20 +203,14 @@ export default function NewTaskPage() {
 
       <form className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" onSubmit={handleSubmit}>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Task template</label>
-          <select
+          <IdCombobox
+            id="new-task-template"
+            label="Task template"
             value={taskMasterId}
-            onChange={(e) => setTaskMasterId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
-            required
-          >
-            <option value="">Select from task master…</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.title} ({t.task_type === "clinical" ? "Clinical" : "Ops"})
-              </option>
-            ))}
-          </select>
+            onChange={setTaskMasterId}
+            options={templateOptions}
+            placeholder="Type to filter templates…"
+          />
         </div>
 
         {isClinical ? (
@@ -224,20 +233,14 @@ export default function NewTaskPage() {
         ) : null}
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Assignee</label>
-          <select
+          <IdCombobox
+            id="new-task-assignee"
+            label="Assignee"
             value={assigneeId}
-            onChange={(e) => setAssigneeId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
-            required
-          >
-            <option value="">Select user</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.full_name} ({u.role})
-              </option>
-            ))}
-          </select>
+            onChange={setAssigneeId}
+            options={assigneeOptions}
+            placeholder="Type to filter users…"
+          />
         </div>
 
         <div>

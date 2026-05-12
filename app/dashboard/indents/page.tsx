@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useToast } from "@/components/ui/ToastProvider";
+import { IdCombobox } from "@/components/ui/IdCombobox";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type IndentRow = {
@@ -150,12 +151,18 @@ export default function IndentsPage() {
       });
       const data = (await res.json()) as { error?: string; message?: string };
       if (!res.ok) {
+        console.error("[markReceived] PATCH /api/indents failed", {
+          status: res.status,
+          indentId,
+          response: data,
+        });
         toast.error(data.error ?? "Could not mark indent as received");
         return;
       }
       toast.success(data.message ?? "Marked received");
       void load();
-    } catch {
+    } catch (e) {
+      console.error("[markReceived] request failed", { indentId, error: e });
       toast.error("Could not mark indent as received");
     }
   }
@@ -384,6 +391,11 @@ function RaiseIndentSheet({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const itemOptions = useMemo(
+    () => items.map((item) => ({ id: item.id, label: `${item.name} (${item.vendor_name})` })),
+    [items],
+  );
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
@@ -417,20 +429,14 @@ function RaiseIndentSheet({
         <h2 className="text-lg font-semibold text-[#2563EB]">Raise indent</h2>
         <form className="mt-4 space-y-3" onSubmit={submit}>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Item</label>
-            <select
+            <IdCombobox
+              id="raise-indent-item"
+              label="Item"
               value={itemId}
-              onChange={(e) => setItemId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
-              required
-            >
-              <option value="">Select item</option>
-              {items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name} ({item.vendor_name})
-                </option>
-              ))}
-            </select>
+              onChange={setItemId}
+              options={itemOptions}
+              placeholder="Type to filter items…"
+            />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Quantity</label>

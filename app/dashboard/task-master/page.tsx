@@ -12,6 +12,8 @@ type Template = {
   task_type: string;
   is_active: boolean;
   psi_node_id: string | null;
+  visible_to_staff?: boolean;
+  visible_to_vendor?: boolean;
 };
 type PsiOpt = { id: string; title: string };
 
@@ -124,6 +126,14 @@ export default function TaskMasterPage() {
               <button type="button" className="text-left" onClick={() => setSheet(t)}>
                 <p className="font-semibold text-slate-900">{t.title}</p>
                 <p className="text-xs text-slate-600">{typeLabel(t.task_type)}</p>
+                <p className="mt-1 text-[10px] text-slate-500">
+                  {[
+                    t.visible_to_staff !== false ? "Staff" : null,
+                    t.visible_to_vendor ? "Vendor" : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "Not visible to staff or vendor"}
+                </p>
               </button>
               <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
                 <span>Active</span>
@@ -175,6 +185,8 @@ function TemplateSheet({
     initial ? normalizeTemplateTaskType(initial.task_type) : "ops",
   );
   const [active, setActive] = useState(initial?.is_active ?? true);
+  const [visibleToStaff, setVisibleToStaff] = useState(initial?.visible_to_staff !== false);
+  const [visibleToVendor, setVisibleToVendor] = useState(initial?.visible_to_vendor === true);
   const [psiNodeId, setPsiNodeId] = useState(initial?.psi_node_id ?? "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -184,7 +196,14 @@ function TemplateSheet({
     setError("");
     setSaving(true);
     try {
-      const body = { title, task_type: taskType, is_active: active, psi_node_id: psiNodeId || null };
+      const body = {
+        title,
+        task_type: taskType,
+        is_active: active,
+        psi_node_id: psiNodeId || null,
+        visible_to_staff: visibleToStaff,
+        visible_to_vendor: visibleToVendor,
+      };
       const isNew = !initial;
       const res = isNew
         ? await fetch("/api/task-master", {
@@ -257,6 +276,14 @@ function TemplateSheet({
           <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
             <span>Active</span>
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+          </label>
+          <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
+            <span>Visible to Staff</span>
+            <input type="checkbox" checked={visibleToStaff} onChange={(e) => setVisibleToStaff(e.target.checked)} />
+          </label>
+          <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
+            <span>Visible to Vendor</span>
+            <input type="checkbox" checked={visibleToVendor} onChange={(e) => setVisibleToVendor(e.target.checked)} />
           </label>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <button

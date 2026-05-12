@@ -2,22 +2,10 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
-import { DEFAULT_PAYMENT_METHOD_NAMES } from "@/lib/cashbook/paymentMethodDefaults";
 import { createServiceClient } from "@/lib/supabase/service";
 
 function sortByNameCi<T extends { name: string }>(rows: T[]) {
   return [...rows].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-}
-
-async function seedDefaultsIfEmpty(supabase: ReturnType<typeof createServiceClient>) {
-  const { count } = await supabase.from("payment_methods").select("id", { count: "exact", head: true });
-  if ((count ?? 0) > 0) return;
-
-  const rows = DEFAULT_PAYMENT_METHOD_NAMES.map((name) => ({
-    name,
-    is_active: true,
-  }));
-  await supabase.from("payment_methods").insert(rows);
 }
 
 export async function GET(request: Request) {
@@ -30,7 +18,6 @@ export async function GET(request: Request) {
   const activeOnly = url.searchParams.get("active_only") === "1";
 
   const supabase = createServiceClient();
-  await seedDefaultsIfEmpty(supabase);
 
   let q = supabase.from("payment_methods").select("id, name, is_active, created_at");
   if (activeOnly) q = q.eq("is_active", true);

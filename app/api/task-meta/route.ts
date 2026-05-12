@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { assertActiveUser, canCreateTasks, getActorId, getUserRole } from "@/lib/api/actor";
+import { assertCeoOrOps } from "@/lib/api/ceoOrOps";
 import { createServiceClient } from "@/lib/supabase/service";
 import { normalizeTemplateTaskType } from "@/lib/task/taskTypes";
 
@@ -14,6 +15,18 @@ export async function GET(request: Request) {
   const role = await getUserRole(actorId);
   const supabase = createServiceClient();
   const canCreate = await canCreateTasks(actorId);
+
+  let templatesQuery = supabase.from("task_master").select("id, title, task_type, psi_node_id").eq("is_active", true);
+  if (canCreate) {
+    const privileged = await assertCeoOrOps(actorId);
+    if (!privileged) {
+      if (role === "vendor") {
+        templatesQuery = templatesQuery.eq("visible_to_vendor", true);
+      } else {
+        templatesQuery = templatesQuery.eq("visible_to_staff", true);
+      }
+    }
+  }
 
   const [usersRes, patientsRes, psiRes, templatesRes] = await Promise.all([
     supabase.from("users").select("id, full_name, role").eq("is_active", true).order("full_name"),
@@ -30,16 +43,7 @@ export async function GET(request: Request) {
       .eq("type", "problem")
       .eq("is_active", true)
       .order("title"),
-    canCreate
-      ? supabase
-          .from("task_master")
-          .select("id, title, task_type, psi_node_id")
-          .eq("is_active", true)
-          .order("title")
-      : Promise.resolve({
-          data: [] as { id: string; title: string; task_type: string; psi_node_id: string | null }[],
-          error: null,
-        }),
+    canCreate ? templatesQuery.order("title") : Promise.resolve({ data: [] as { id: string; title: string; task_type: string; psi_node_id: string | null }[], error: null }),
   ]);
 
   if (usersRes.error) {

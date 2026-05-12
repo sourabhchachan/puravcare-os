@@ -9,6 +9,8 @@ type PatchBody = {
   task_type?: string;
   is_active?: boolean;
   psi_node_id?: string | null;
+  visible_to_staff?: boolean;
+  visible_to_vendor?: boolean;
 };
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -32,6 +34,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     updates.task_type = body.task_type;
   }
   if (typeof body.is_active === "boolean") updates.is_active = body.is_active;
+  if (typeof body.visible_to_staff === "boolean") updates.visible_to_staff = body.visible_to_staff;
+  if (typeof body.visible_to_vendor === "boolean") updates.visible_to_vendor = body.visible_to_vendor;
   if (body.psi_node_id !== undefined) {
     const psiNodeId = body.psi_node_id?.trim() || null;
     if (psiNodeId) {

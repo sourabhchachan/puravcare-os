@@ -205,6 +205,8 @@ CREATE TABLE public.task_master (
   is_patient_linked boolean NOT NULL DEFAULT false,
   psi_node_id uuid REFERENCES public.psi_nodes (id) ON DELETE SET NULL,
   is_active boolean NOT NULL DEFAULT true,
+  visible_to_staff boolean NOT NULL DEFAULT true,
+  visible_to_vendor boolean NOT NULL DEFAULT false,
   created_by uuid REFERENCES public.users (id),
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -717,6 +719,12 @@ ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
 
 ALTER TABLE public.task_master
 ADD COLUMN IF NOT EXISTS psi_node_id uuid REFERENCES public.psi_nodes (id);
+
+ALTER TABLE public.task_master
+ADD COLUMN IF NOT EXISTS visible_to_staff boolean NOT NULL DEFAULT true;
+
+ALTER TABLE public.task_master
+ADD COLUMN IF NOT EXISTS visible_to_vendor boolean NOT NULL DEFAULT false;
 
 ALTER TABLE public.tasks
 ADD COLUMN IF NOT EXISTS cancel_reason text;

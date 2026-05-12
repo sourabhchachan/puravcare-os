@@ -39,7 +39,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   if (action === "cancel") {
     if (role === "vendor") return NextResponse.json({ error: "forbidden" }, { status: 403 });
-    const isCreator = row.created_by === actorId;
+    const isCreator =
+      row.created_by != null && actorId != null && String(row.created_by) === String(actorId);
     if (!(await assertCeoOrOps(actorId)) && !isCreator) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
@@ -109,41 +110,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ indent: data, message: "Indent blocked" });
   }
 
-  if (!(await canViewVendor(actorId!, vendorId))) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
-
-  if (action === "dispatch") {
-    if (row.status !== "pending") return NextResponse.json({ error: "invalid_state" }, { status: 400 });
-    if (role === "vendor") {
-      const { data: link } = await supabase.from("vendor_users").select("vendor_id").eq("user_id", actorId!).maybeSingle();
-      if (!link || link.vendor_id !== vendorId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
-    } else if (!(await assertCeoOrOps(actorId))) {
-      return NextResponse.json({ error: "forbidden" }, { status: 403 });
-    }
-
-    const oldStatus = row.status as string;
-    const { data, error } = await supabase
-      .from("indents")
-      .update({ status: "dispatched", updated_at: nowIso })
-      .eq("id", id)
-      .select("*")
-      .single();
-    if (error || !data) return NextResponse.json({ error: "update_failed" }, { status: 500 });
-    const { error: eventErr } = await supabase.from("indent_events").insert({
-      indent_id: id,
-      actor_id: actorId!,
-      event_type: "dispatch",
-      old_value: oldStatus,
-      new_value: "dispatched",
-      note: null,
-    });
-    if (eventErr) return NextResponse.json({ error: "event_log_failed" }, { status: 500 });
-    return NextResponse.json({ indent: data });
-  }
-
   if (action === "receive") {
-    const isCreator = row.created_by === actorId;
+    const isCreator =
+      row.created_by != null && actorId != null && String(row.created_by) === String(actorId);
     if (!(await assertCeoOrOps(actorId)) && !isCreator) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
@@ -228,6 +197,39 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       indent: deliveredRow,
       message: "Indent received and added to billing/invoice",
     });
+  }
+
+  if (!(await canViewVendor(actorId!, vendorId))) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  if (action === "dispatch") {
+    if (row.status !== "pending") return NextResponse.json({ error: "invalid_state" }, { status: 400 });
+    if (role === "vendor") {
+      const { data: link } = await supabase.from("vendor_users").select("vendor_id").eq("user_id", actorId!).maybeSingle();
+      if (!link || link.vendor_id !== vendorId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    } else if (!(await assertCeoOrOps(actorId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    const oldStatus = row.status as string;
+    const { data, error } = await supabase
+      .from("indents")
+      .update({ status: "dispatched", updated_at: nowIso })
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error || !data) return NextResponse.json({ error: "update_failed" }, { status: 500 });
+    const { error: eventErr } = await supabase.from("indent_events").insert({
+      indent_id: id,
+      actor_id: actorId!,
+      event_type: "dispatch",
+      old_value: oldStatus,
+      new_value: "dispatched",
+      note: null,
+    });
+    if (eventErr) return NextResponse.json({ error: "event_log_failed" }, { status: 500 });
+    return NextResponse.json({ indent: data });
   }
 
   /* deliver */

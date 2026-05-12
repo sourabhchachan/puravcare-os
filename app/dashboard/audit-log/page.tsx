@@ -34,11 +34,19 @@ function ymd(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-function formatDt(iso: string) {
+function formatDate(iso: string) {
   try {
-    return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+    return new Date(iso).toLocaleDateString(undefined, { dateStyle: "medium" });
   } catch {
     return iso;
+  }
+}
+
+function formatTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString(undefined, { timeStyle: "short" });
+  } catch {
+    return "";
   }
 }
 
@@ -205,8 +213,11 @@ export default function AuditLogPage() {
       <ul className="space-y-2">
         {rows.map((r) => (
           <li key={r.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
-            <p className="text-xs text-slate-500">{formatDt(r.created_at)}</p>
-            <p className="font-semibold text-slate-900">{r.item_name}</p>
+            <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
+              <span>Date: {formatDate(r.created_at)}</span>
+              <span className="text-right sm:text-left">Time: {formatTime(r.created_at)}</span>
+            </div>
+            <p className="mt-2 font-semibold text-slate-900">{r.item_name}</p>
             <p className="text-xs font-medium capitalize text-[#2563EB]">{r.event_type.replace(/_/g, " ")}</p>
             <p className="text-xs text-slate-600">
               Actor: {r.actor_name}

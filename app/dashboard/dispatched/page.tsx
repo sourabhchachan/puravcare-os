@@ -69,22 +69,6 @@ export default function VendorDispatchedPage() {
     void load();
   }, [load]);
 
-  async function markDelivered(id: string) {
-    if (!session) return;
-    const res = await fetch(`/api/indents/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-actor-id": session.id },
-      body: JSON.stringify({ action: "deliver" }),
-    });
-    const body = (await res.json()) as { error?: string };
-    if (!res.ok) {
-      toast.error(body.error ?? "Could not mark delivered");
-      return;
-    }
-    toast.success("Marked delivered");
-    void load();
-  }
-
   if (loading || !session) return <p className="text-sm text-slate-500">Loading…</p>;
   if (session.role !== "vendor") {
     return <p className="text-sm text-slate-600">Vendor portal only.</p>;
@@ -106,13 +90,6 @@ export default function VendorDispatchedPage() {
               Qty: {i.quantity ?? "—"} {i.unit ? `· ${i.unit}` : ""}
             </p>
             <p className="text-xs text-slate-500">{formatDt(i.created_at)}</p>
-            <button
-              type="button"
-              onClick={() => void markDelivered(i.id)}
-              className="mt-3 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"
-            >
-              Mark delivered
-            </button>
           </li>
         ))}
       </ul>
