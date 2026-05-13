@@ -13,6 +13,7 @@ type PostBody = {
   category_id?: string;
   payment_method_id?: string;
   customer_id?: string;
+  custom_fields?: Record<string, unknown>;
 };
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -79,6 +80,36 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "invalid_classification" }, { status: 400 });
   }
 
+  const { data: fieldRows, error: fieldsErr } = await supabase
+    .from("cashbook_fields")
+    .select("id, field_type, is_required")
+    .eq("cashbook_id", cashbookId);
+  if (fieldsErr) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+  const allowedFields = new Map((fieldRows ?? []).map((f) => [String(f.id), f]));
+  const customFieldsRaw = body.custom_fields ?? {};
+  if (typeof customFieldsRaw !== "object" || customFieldsRaw === null || Array.isArray(customFieldsRaw)) {
+    return NextResponse.json({ error: "invalid_custom_fields" }, { status: 400 });
+  }
+  const normalizedCustomFields: Record<string, string | number> = {};
+  for (const [fieldId, rawValue] of Object.entries(customFieldsRaw)) {
+    const fieldDef = allowedFields.get(fieldId);
+    if (!fieldDef) return NextResponse.json({ error: "invalid_custom_fields" }, { status: 400 });
+    if (rawValue === null || rawValue === undefined || rawValue === "") continue;
+    if (fieldDef.field_type === "number") {
+      const n = typeof rawValue === "number" ? rawValue : Number(rawValue);
+      if (Number.isNaN(n)) return NextResponse.json({ error: "invalid_custom_fields" }, { status: 400 });
+      normalizedCustomFields[fieldId] = n;
+      continue;
+    }
+    if (typeof rawValue !== "string") return NextResponse.json({ error: "invalid_custom_fields" }, { status: 400 });
+    normalizedCustomFields[fieldId] = rawValue.trim();
+  }
+  for (const f of fieldRows ?? []) {
+    if (f.is_required && !(String(f.id) in normalizedCustomFields)) {
+      return NextResponse.json({ error: "missing_required_custom_field" }, { status: 400 });
+    }
+  }
+
   const { data: row, error } = await supabase
     .from("cash_entries")
     .insert({
@@ -91,6 +122,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       category_id: categoryId,
       payment_method_id: paymentMethodId,
       customer_id: customerId,
+      custom_fields: normalizedCustomFields,
     })
     .select("*")
     .single();

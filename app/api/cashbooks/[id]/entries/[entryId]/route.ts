@@ -13,6 +13,7 @@ type PatchBody = {
   category_id?: string;
   payment_method_id?: string;
   customer_id?: string;
+  custom_fields?: Record<string, unknown>;
 };
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string; entryId: string }> }) {
@@ -52,8 +53,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const role = isCeo ? "ceo" : (myMember!.role as string);
-  const canEditAny = isCeo || role === "primary_admin" || role === "admin";
+  const canEditAny = isCeo;
   const isOwner = entry.created_by === actorId;
   const canEditOwn = isCeo || Boolean(myMember?.can_edit_own);
 
@@ -102,6 +102,38 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "invalid_entry_date" }, { status: 400 });
     }
     updates.entry_date = entryDate.toISOString();
+  }
+
+  if (body.custom_fields !== undefined) {
+    const { data: fieldRows, error: fieldsErr } = await supabase
+      .from("cashbook_fields")
+      .select("id, field_type, is_required")
+      .eq("cashbook_id", cashbookId);
+    if (fieldsErr) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+    if (typeof body.custom_fields !== "object" || body.custom_fields === null || Array.isArray(body.custom_fields)) {
+      return NextResponse.json({ error: "invalid_custom_fields" }, { status: 400 });
+    }
+    const defs = new Map((fieldRows ?? []).map((f) => [String(f.id), f]));
+    const normalizedCustomFields: Record<string, string | number> = {};
+    for (const [fieldId, rawValue] of Object.entries(body.custom_fields)) {
+      const fieldDef = defs.get(fieldId);
+      if (!fieldDef) return NextResponse.json({ error: "invalid_custom_fields" }, { status: 400 });
+      if (rawValue === null || rawValue === undefined || rawValue === "") continue;
+      if (fieldDef.field_type === "number") {
+        const n = typeof rawValue === "number" ? rawValue : Number(rawValue);
+        if (Number.isNaN(n)) return NextResponse.json({ error: "invalid_custom_fields" }, { status: 400 });
+        normalizedCustomFields[fieldId] = n;
+      } else {
+        if (typeof rawValue !== "string") return NextResponse.json({ error: "invalid_custom_fields" }, { status: 400 });
+        normalizedCustomFields[fieldId] = rawValue.trim();
+      }
+    }
+    for (const f of fieldRows ?? []) {
+      if (f.is_required && !(String(f.id) in normalizedCustomFields)) {
+        return NextResponse.json({ error: "missing_required_custom_field" }, { status: 400 });
+      }
+    }
+    updates.custom_fields = normalizedCustomFields;
   }
 
   if (Object.keys(updates).length === 0) {

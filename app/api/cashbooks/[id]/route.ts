@@ -53,12 +53,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const hideBal = !isCeo && role === "data_operator" && Boolean(myMember!.hide_balance);
 
   const canManageMembers = isCeo || role === "primary_admin";
-  const canEditAnyEntry = isCeo || role === "primary_admin" || role === "admin";
+  const canEditAnyEntry = isCeo;
 
   let entriesQuery = supabase
     .from("cash_entries")
     .select(
-      "id, entry_type, amount, description, entry_date, created_by, created_at, category_id, payment_method_id, customer_id",
+      "id, entry_type, amount, description, entry_date, created_by, created_at, category_id, payment_method_id, customer_id, custom_fields",
     )
     .eq("cashbook_id", cashbookId)
     .order("entry_date", { ascending: false })
@@ -106,6 +106,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     customer_name: e.customer_id ? (custMap[e.customer_id as string] ?? "—") : "—",
   }));
 
+  const { data: cashbookFields, error: fErr } = await supabase
+    .from("cashbook_fields")
+    .select("id, field_name, field_type, is_required, display_order")
+    .eq("cashbook_id", cashbookId)
+    .order("display_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (fErr) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+
   const balance = hideBal ? null : await bookBalance(supabase, cashbookId);
 
   const { data: memberRows } = await supabase.from("cashbook_members").select("user_id, role").eq("cashbook_id", cashbookId);
@@ -143,5 +151,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     entries,
     members,
     directory_users,
+    cashbook_fields: cashbookFields ?? [],
   });
 }

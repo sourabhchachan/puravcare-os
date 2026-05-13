@@ -22,9 +22,17 @@ type EntryRow = {
   category_name?: string | null;
   payment_method_name?: string | null;
   customer_name?: string | null;
+  custom_fields?: Record<string, string | number>;
 };
 
 type MemberRow = { user_id: string; full_name: string; role: string };
+type CashbookField = {
+  id: string;
+  field_name: string;
+  field_type: "text" | "number" | "date";
+  is_required: boolean;
+  display_order: number;
+};
 
 type DetailPayload = {
   cashbook: { id: string; name: string; description: string | null };
@@ -37,6 +45,7 @@ type DetailPayload = {
   entries: EntryRow[];
   members: MemberRow[];
   directory_users?: { id: string; full_name: string; role: string }[];
+  cashbook_fields?: CashbookField[];
 };
 
 function formatInr(n: number) {
@@ -96,6 +105,7 @@ export default function CashbookDetailPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<EntryRow | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [fieldsOpen, setFieldsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -179,15 +189,26 @@ export default function CashbookDetailPage() {
           >
             Export
           </button>
-          {data.can_manage_members ? (
-            <button
-              type="button"
-              onClick={() => setMembersOpen(true)}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
-            >
-              Members
-            </button>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {data.role === "ceo" ? (
+              <button
+                type="button"
+                onClick={() => setFieldsOpen(true)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
+              >
+                Fields
+              </button>
+            ) : null}
+            {data.can_manage_members ? (
+              <button
+                type="button"
+                onClick={() => setMembersOpen(true)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
+              >
+                Members
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -248,9 +269,10 @@ export default function CashbookDetailPage() {
         <EntrySheet
           mode="add"
           sessionId={session.id}
-          sessionRole={session.role}
           cashbookId={id}
           canBackdate={data.can_backdate}
+          isCashbookMember={data.role === "ceo" || Boolean(data.role)}
+          customFieldDefs={data.cashbook_fields ?? []}
           onClose={() => setAddOpen(false)}
           onSaved={() => {
             setAddOpen(false);
@@ -264,9 +286,10 @@ export default function CashbookDetailPage() {
         <EntrySheet
           mode="edit"
           sessionId={session.id}
-          sessionRole={session.role}
           cashbookId={id}
           canBackdate={data.can_backdate}
+          isCashbookMember={data.role === "ceo" || Boolean(data.role)}
+          customFieldDefs={data.cashbook_fields ?? []}
           initial={editEntry}
           onClose={() => setEditEntry(null)}
           onSaved={() => {
@@ -284,6 +307,18 @@ export default function CashbookDetailPage() {
           members={data.members}
           directory={data.directory_users ?? []}
           onClose={() => setMembersOpen(false)}
+          onSaved={() => {
+            void load();
+          }}
+        />
+      ) : null}
+
+      {fieldsOpen && data.role === "ceo" ? (
+        <FieldsSheet
+          sessionId={session.id}
+          cashbookId={id}
+          fields={data.cashbook_fields ?? []}
+          onClose={() => setFieldsOpen(false)}
           onSaved={() => {
             void load();
           }}
@@ -324,24 +359,26 @@ function sortMasterOpts(opts: MasterOpt[]) {
 function EntrySheet({
   mode,
   sessionId,
-  sessionRole,
   cashbookId,
   canBackdate,
+  isCashbookMember,
+  customFieldDefs,
   initial,
   onClose,
   onSaved,
 }: {
   mode: "add" | "edit";
   sessionId: string;
-  sessionRole: string;
   cashbookId: string;
   canBackdate: string;
+  isCashbookMember: boolean;
+  customFieldDefs: CashbookField[];
   initial?: EntryRow;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const toast = useToast();
-  const canQuickCustomer = sessionRole === "ceo" || sessionRole === "ops";
+  const canQuickCustomer = isCashbookMember;
   const [entryType, setEntryType] = useState<"in" | "out">((initial?.entry_type as "in" | "out") ?? "in");
   const [amount, setAmount] = useState(initial != null ? String(initial.amount) : "");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -359,6 +396,12 @@ function EntrySheet({
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [customValues, setCustomValues] = useState<Record<string, string>>(() => {
+    const raw = initial?.custom_fields ?? {};
+    const mapped: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw)) mapped[k] = String(v ?? "");
+    return mapped;
+  });
 
   const loadMasters = useCallback(async () => {
     setMastersLoading(true);
@@ -405,6 +448,25 @@ function EntrySheet({
       toast.error("Select category, payment method, and customer.");
       return;
     }
+    for (const field of customFieldDefs) {
+      const v = (customValues[field.id] ?? "").trim();
+      if (field.is_required && !v) {
+        setError(`${field.field_name} is required.`);
+        toast.error(`${field.field_name} is required.`);
+        return;
+      }
+      if (field.field_type === "number" && v && Number.isNaN(Number(v))) {
+        setError(`${field.field_name} must be a number.`);
+        toast.error(`${field.field_name} must be a number.`);
+        return;
+      }
+    }
+    const customPayload: Record<string, string | number> = {};
+    for (const field of customFieldDefs) {
+      const v = (customValues[field.id] ?? "").trim();
+      if (!v) continue;
+      customPayload[field.id] = field.field_type === "number" ? Number(v) : v;
+    }
     setSaving(true);
     try {
       const n = Number(amount);
@@ -427,6 +489,7 @@ function EntrySheet({
             category_id: categoryId,
             payment_method_id: paymentMethodId,
             customer_id: customerId,
+            custom_fields: customPayload,
           }),
         });
         const body = (await res.json()) as { error?: string };
@@ -447,6 +510,7 @@ function EntrySheet({
             category_id: categoryId,
             payment_method_id: paymentMethodId,
             customer_id: customerId,
+            custom_fields: customPayload,
           }),
         });
         const body = (await res.json()) as { error?: string };
@@ -547,6 +611,21 @@ function EntrySheet({
               ) : null}
             </div>
           </div>
+          {customFieldDefs.map((f) => (
+            <div key={f.id}>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                {f.field_name}
+                {f.is_required ? " *" : ""}
+              </label>
+              <input
+                type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"}
+                value={customValues[f.id] ?? ""}
+                onChange={(e) => setCustomValues((prev) => ({ ...prev, [f.id]: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+                required={f.is_required}
+              />
+            </div>
+          ))}
           <div className="flex gap-2">
             <button
               type="button"
@@ -807,6 +886,118 @@ function MembersSheet({
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <button type="submit" className="w-full rounded-lg bg-[#2563EB] py-2 text-sm font-semibold text-white">
             Add
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function FieldsSheet({
+  sessionId,
+  cashbookId,
+  fields,
+  onClose,
+  onSaved,
+}: {
+  sessionId: string;
+  cashbookId: string;
+  fields: CashbookField[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [fieldName, setFieldName] = useState("");
+  const [fieldType, setFieldType] = useState<"text" | "number" | "date">("text");
+  const [isRequired, setIsRequired] = useState(false);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function addField(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!fieldName.trim()) return;
+    setSaving(true);
+    const res = await fetch(`/api/cashbooks/${cashbookId}/fields`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
+      body: JSON.stringify({
+        field_name: fieldName.trim(),
+        field_type: fieldType,
+        is_required: isRequired,
+        display_order: fields.length,
+      }),
+    });
+    const body = (await res.json()) as { error?: string };
+    setSaving(false);
+    if (!res.ok) {
+      setError(body.error ?? "Could not add field");
+      toast.error(body.error ?? "Could not add field");
+      return;
+    }
+    setFieldName("");
+    setFieldType("text");
+    setIsRequired(false);
+    toast.success("Field added");
+    onSaved();
+  }
+
+  async function removeField(fieldId: string) {
+    const res = await fetch(`/api/cashbooks/${cashbookId}/fields?field_id=${encodeURIComponent(fieldId)}`, {
+      method: "DELETE",
+      headers: { "x-actor-id": sessionId },
+    });
+    if (!res.ok) {
+      toast.error("Could not remove field");
+      return;
+    }
+    toast.warning("Field removed");
+    onSaved();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+      <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
+      <div className="mx-auto max-h-[90vh] w-full max-w-[430px] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-[#2563EB]">Fields</h2>
+        <ul className="mt-3 space-y-2 text-sm">
+          {fields.map((f) => (
+            <li key={f.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-2 py-2">
+              <span>
+                {f.field_name}{" "}
+                <span className="text-slate-500">
+                  ({f.field_type}
+                  {f.is_required ? ", required" : ""})
+                </span>
+              </span>
+              <button type="button" className="text-xs text-red-600" onClick={() => void removeField(f.id)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+        <form className="mt-4 space-y-2 border-t border-slate-100 pt-4" onSubmit={addField}>
+          <p className="text-xs font-semibold text-slate-600">Add field</p>
+          <input
+            value={fieldName}
+            onChange={(e) => setFieldName(e.target.value)}
+            placeholder="Field name"
+            className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
+            required
+          />
+          <select value={fieldType} onChange={(e) => setFieldType(e.target.value as typeof fieldType)} className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm">
+            <option value="text">Text</option>
+            <option value="number">Number</option>
+            <option value="date">Date</option>
+          </select>
+          <label className="flex justify-between text-xs">
+            <span>Required</span>
+            <input type="checkbox" checked={isRequired} onChange={(e) => setIsRequired(e.target.checked)} />
+          </label>
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <button type="submit" disabled={saving} className="w-full rounded-lg bg-[#2563EB] py-2 text-sm font-semibold text-white disabled:opacity-50">
+            {saving ? "Saving…" : "Add"}
           </button>
         </form>
       </div>

@@ -348,7 +348,7 @@ CREATE TABLE public.cashbook_fields (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   cashbook_id uuid NOT NULL REFERENCES public.cashbooks (id) ON DELETE CASCADE,
   field_name text NOT NULL,
-  field_type text CHECK (field_type IN ('text', 'number', 'select')),
+  field_type text CHECK (field_type IN ('text', 'number', 'date', 'select')),
   is_required boolean NOT NULL DEFAULT false,
   display_order integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now()
