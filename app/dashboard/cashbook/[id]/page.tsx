@@ -190,7 +190,7 @@ export default function CashbookDetailPage() {
             Export
           </button>
           <div className="flex items-center gap-2">
-            {data.role === "ceo" ? (
+            {session.role === "ceo" ? (
               <button
                 type="button"
                 onClick={() => setFieldsOpen(true)}
@@ -313,7 +313,7 @@ export default function CashbookDetailPage() {
         />
       ) : null}
 
-      {fieldsOpen && data.role === "ceo" ? (
+      {fieldsOpen && session.role === "ceo" ? (
         <FieldsSheet
           sessionId={session.id}
           cashbookId={id}
