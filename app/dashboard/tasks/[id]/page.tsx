@@ -84,7 +84,10 @@ export default function TaskDetailPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/tasks/${id}`, { headers: { "x-actor-id": session.id } });
+      const res = await fetch(`/api/tasks/${id}?_=${Date.now()}`, {
+        headers: { "x-actor-id": session.id },
+        cache: "no-store",
+      });
       const data = (await res.json()) as {
         task?: TaskRow;
         events?: EventRow[];
@@ -135,12 +138,25 @@ export default function TaskDetailPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ actor_id: session.id, action, ...extra }),
+        cache: "no-store",
       });
-      const body = (await res.json()) as { error?: string };
+      const body = (await res.json()) as { error?: string; task?: TaskRow };
       if (!res.ok) {
         setError(body.error ?? "Action failed");
         toast.error(body.error ?? "Action failed");
         return false;
+      }
+      if (body.task) {
+        setTask(body.task);
+      }
+      if (action === "cancel") {
+        const status = body.task?.status as string | undefined;
+        console.log("[cancel] response status:", status);
+        if (status !== "cancelled") {
+          setError("Cancel did not update task status");
+          toast.error(status ? `Cancel failed — task is still ${status}` : "Cancel failed");
+          return false;
+        }
       }
       const okLabels: Record<string, string> = {
         acknowledge: "Acknowledged",
@@ -154,6 +170,9 @@ export default function TaskDetailPage() {
         unblock: "Task unblocked",
       };
       toast.success(okLabels[action] ?? "Saved");
+      if (action === "cancel") {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
       await load();
       return true;
     } catch {
@@ -522,7 +541,9 @@ export default function TaskDetailPage() {
               type="button"
               disabled={busy || !cancelReason.trim()}
               onClick={async () => {
-                const ok = await patch("cancel", { reason: cancelReason.trim() });
+                const reason = cancelReason.trim();
+                console.log("[cancel]", { action: "cancel", reason });
+                const ok = await patch("cancel", { reason });
                 if (ok) {
                   setCancelSheetOpen(false);
                   setCancelReason("");

@@ -427,7 +427,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
       const cancelReason = (body.reason ?? "").trim();
       if (!cancelReason) return NextResponse.json({ error: "missing_reason" }, { status: 400 });
-      await supabase
+      const { data: cancelledTask, error: cancelUpdateErr } = await supabase
         .from("tasks")
         .update({
           status: "cancelled",
@@ -436,7 +436,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           cancelled_at: nowIso,
           updated_at: nowIso,
         })
-        .eq("id", id);
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (cancelUpdateErr || !cancelledTask || (cancelledTask.status as string) !== "cancelled") {
+        console.error("[tasks/cancel] update failed", cancelUpdateErr, cancelledTask?.status);
+        return NextResponse.json({ error: "update_failed" }, { status: 500 });
+      }
       await insertEvent(supabase, {
         task_id: id,
         actor_id: actorId,
@@ -446,7 +452,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         note: cancelReason,
       });
       await processChainAfterTaskCancelled(supabase, id, cancelReason);
-      break;
+
+      const { data: taskAfterChain } = await supabase.from("tasks").select("*").eq("id", id).single();
+      const finalTask = taskAfterChain ?? cancelledTask;
+      if ((finalTask.status as string) !== "cancelled") {
+        console.error("[tasks/cancel] status reverted after chain processing", finalTask.status);
+        return NextResponse.json({ error: "update_failed" }, { status: 500 });
+      }
+      return NextResponse.json({ task: finalTask });
     }
     default:
       return NextResponse.json({ error: "unknown_action" }, { status: 400 });
