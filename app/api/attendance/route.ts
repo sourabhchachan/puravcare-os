@@ -1,0 +1,173 @@
+import { NextResponse } from "next/server";
+
+import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
+import { assertCeoOrOps } from "@/lib/api/ceoOrOps";
+import { hoursBetween, kolkataToday } from "@/lib/attendance/kolkataToday";
+import { createServiceClient } from "@/lib/supabase/service";
+
+type PostBody = {
+  action?: string;
+};
+
+function userNameFromJoin(users: unknown): string {
+  const u = users as { full_name: string } | { full_name: string }[] | null;
+  if (Array.isArray(u)) return u[0]?.full_name ?? "—";
+  return u?.full_name ?? "—";
+}
+
+export async function GET(request: Request) {
+  const actorId = getActorId(request);
+  if (!(await assertActiveUser(actorId))) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const url = new URL(request.url);
+  const scope = url.searchParams.get("scope");
+
+  const supabase = createServiceClient();
+
+  if (scope === "report") {
+    if (!(await assertCeoOrOps(actorId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    const from = url.searchParams.get("from")?.trim() || "";
+    const to = url.searchParams.get("to")?.trim() || "";
+    const userQ = (url.searchParams.get("user") || "").trim().toLowerCase();
+
+    let q = supabase
+      .from("attendance")
+      .select("id, user_id, attendance_date, punch_in, punch_out, users(full_name)")
+      .order("attendance_date", { ascending: false })
+      .order("punch_in", { ascending: false });
+
+    if (from) q = q.gte("attendance_date", from);
+    if (to) q = q.lte("attendance_date", to);
+
+    const { data, error } = await q;
+    if (error) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+
+    let records = (data ?? []).map((r) => {
+      const punchIn = r.punch_in as string;
+      const punchOut = r.punch_out as string | null;
+      return {
+        id: r.id as string,
+        user_id: r.user_id as string,
+        user_name: userNameFromJoin(r.users),
+        attendance_date: r.attendance_date as string,
+        punch_in: punchIn,
+        punch_out: punchOut,
+        total_hours: punchOut ? hoursBetween(punchIn, punchOut) : null,
+      };
+    });
+
+    if (userQ) {
+      records = records.filter((r) => r.user_name.toLowerCase().includes(userQ));
+    }
+
+    return NextResponse.json({ records });
+  }
+
+  const today = kolkataToday();
+  const { data: rows, error } = await supabase
+    .from("attendance")
+    .select("*")
+    .eq("user_id", actorId!)
+    .eq("attendance_date", today)
+    .order("punch_in", { ascending: true });
+
+  if (error) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+
+  const list = rows ?? [];
+  const openRecord = list.find((r) => !r.punch_out) ?? null;
+
+  return NextResponse.json({
+    date: today,
+    open_record: openRecord,
+    today_records: list,
+  });
+}
+
+export async function POST(request: Request) {
+  const actorId = getActorId(request);
+  if (!(await assertActiveUser(actorId))) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const role = await getUserRole(actorId);
+  if (role === "ceo") {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  let body: PostBody;
+  try {
+    body = (await request.json()) as PostBody;
+  } catch {
+    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+  }
+
+  const action = (body.action ?? "").trim();
+  if (!["punch_in", "punch_out"].includes(action)) {
+    return NextResponse.json({ error: "invalid_action" }, { status: 400 });
+  }
+
+  const supabase = createServiceClient();
+  const today = kolkataToday();
+  const nowIso = new Date().toISOString();
+
+  if (action === "punch_in") {
+    const { data: open } = await supabase
+      .from("attendance")
+      .select("id")
+      .eq("user_id", actorId!)
+      .eq("attendance_date", today)
+      .is("punch_out", null)
+      .maybeSingle();
+
+    if (open) {
+      return NextResponse.json({ error: "already_punched_in" }, { status: 400 });
+    }
+
+    const { data: inserted, error } = await supabase
+      .from("attendance")
+      .insert({
+        user_id: actorId!,
+        attendance_date: today,
+        punch_in: nowIso,
+      })
+      .select("*")
+      .single();
+
+    if (error || !inserted) {
+      return NextResponse.json({ error: "insert_failed" }, { status: 500 });
+    }
+
+    return NextResponse.json({ record: inserted });
+  }
+
+  const { data: openRow, error: openErr } = await supabase
+    .from("attendance")
+    .select("*")
+    .eq("user_id", actorId!)
+    .eq("attendance_date", today)
+    .is("punch_out", null)
+    .maybeSingle();
+
+  if (openErr) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+  if (!openRow) {
+    return NextResponse.json({ error: "no_open_punch" }, { status: 400 });
+  }
+
+  const { data: updated, error: updateErr } = await supabase
+    .from("attendance")
+    .update({ punch_out: nowIso })
+    .eq("id", openRow.id as string)
+    .select("*")
+    .single();
+
+  if (updateErr || !updated) {
+    return NextResponse.json({ error: "update_failed" }, { status: 500 });
+  }
+
+  return NextResponse.json({ record: updated });
+}

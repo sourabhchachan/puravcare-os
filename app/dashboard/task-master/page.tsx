@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -14,7 +14,11 @@ type Template = {
   psi_node_id: string | null;
   visible_to_staff?: boolean;
   visible_to_vendor?: boolean;
+  created_at?: string;
 };
+
+type MasterSort = "az" | "za" | "newest" | "oldest";
+
 type PsiOpt = { id: string; title: string };
 
 function typeLabel(t: string) {
@@ -29,6 +33,8 @@ export default function TaskMasterPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [sheet, setSheet] = useState<Template | "new" | null>(null);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<MasterSort>("az");
 
   const load = useCallback(async () => {
     if (!session || session.role !== "ceo") return;
@@ -84,6 +90,20 @@ export default function TaskMasterPage() {
     }
   }
 
+  const displayed = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = q ? templates.filter((t) => t.title.toLowerCase().includes(q)) : [...templates];
+    list = [...list].sort((a, b) => {
+      if (sort === "az") return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+      if (sort === "za") return b.title.localeCompare(a.title, undefined, { sensitivity: "base" });
+      const aTs = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTs = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (sort === "newest") return bTs - aTs;
+      return aTs - bTs;
+    });
+    return list;
+  }, [templates, search, sort]);
+
   async function deleteTemplate(t: Template) {
     if (!session || session.role !== "ceo") return;
     if (!confirm(`Delete template “${t.title}”? This cannot be undone.`)) return;
@@ -138,13 +158,43 @@ export default function TaskMasterPage() {
         </button>
       </div>
 
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search by name…"
+        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+      />
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: "az" as const, label: "A–Z" },
+            { id: "za" as const, label: "Z–A" },
+            { id: "newest" as const, label: "Newest" },
+            { id: "oldest" as const, label: "Oldest" },
+          ] as const
+        ).map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setSort(s.id)}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+              sort === s.id ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {loading ? (
         <p className="text-sm text-slate-500">Loading…</p>
       ) : (
         <ul className="space-y-2">
-          {templates.map((t) => (
+          {displayed.map((t) => (
             <li
               key={t.id}
               className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
@@ -182,7 +232,9 @@ export default function TaskMasterPage() {
               </div>
             </li>
           ))}
-          {templates.length === 0 ? <p className="text-sm text-slate-500">No templates yet.</p> : null}
+          {displayed.length === 0 ? (
+            <p className="text-sm text-slate-500">{templates.length === 0 ? "No templates yet." : "No templates match."}</p>
+          ) : null}
         </ul>
       )}
 

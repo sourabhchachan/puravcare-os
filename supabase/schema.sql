@@ -799,6 +799,26 @@ ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS customer_id uuid REFERE
 
 -- Note: existing databases must widen CHECK constraints manually if upgrades fail, e.g. tasks.status and task_events.event_type.
 
+-- --------------------------------------------------------------------------
+-- Attendance (punch in / punch out)
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.attendance (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
+  attendance_date date NOT NULL,
+  punch_in timestamptz NOT NULL,
+  punch_out timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS attendance_user_date_idx ON public.attendance (user_id, attendance_date);
+CREATE INDEX IF NOT EXISTS attendance_date_idx ON public.attendance (attendance_date);
+
+ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.attendance;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.attendance FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
 -- ============================================================================
 -- Done — schema ready for Phase 3 (role-specific RLS tightening)
 -- ============================================================================

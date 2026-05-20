@@ -107,3 +107,13 @@ export function IconInvoice({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconAttendance({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 20v-1a4 4 0 018 0v1" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

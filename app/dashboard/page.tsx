@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AttendancePunchPanel } from "@/components/dashboard/AttendancePunchPanel";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 
@@ -337,6 +338,7 @@ export default function DashboardHomePage() {
           <h1 className="text-2xl font-bold text-white">{title}</h1>
           <p className="mt-1 text-sm text-blue-200">{dateLabel}</p>
         </section>
+        <AttendancePunchPanel sessionId={session.id} />
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Operations Overview</p>
         <div className="space-y-3">
           <PulseCard
@@ -380,6 +382,7 @@ export default function DashboardHomePage() {
           <h1 className="text-2xl font-bold text-white">{title}</h1>
           <p className="mt-1 text-sm text-blue-200">{dateLabel}</p>
         </section>
+        <AttendancePunchPanel sessionId={session.id} />
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">My Work Overview</p>
         <div className="space-y-3">
           <PulseCard
@@ -416,6 +419,7 @@ export default function DashboardHomePage() {
           <h1 className="text-2xl font-bold text-white">{title}</h1>
           <p className="mt-1 text-sm text-blue-200">{dateLabel}</p>
         </section>
+        <AttendancePunchPanel sessionId={session.id} />
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Vendor Overview</p>
         <div className="space-y-3">
           <PulseCard

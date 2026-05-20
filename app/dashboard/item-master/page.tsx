@@ -15,7 +15,10 @@ type ItemRow = {
   vendor_name: string | null;
   is_patient_linked: boolean;
   is_active: boolean;
+  created_at?: string;
 };
+
+type MasterSort = "az" | "za" | "newest" | "oldest";
 
 function formatInr(n: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
@@ -30,6 +33,7 @@ export default function ItemMasterPage() {
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<MasterSort>("az");
   const [sheet, setSheet] = useState<ItemRow | "new" | null>(null);
 
   const canAccess = session && (session.role === "ceo" || session.can_create_items === true);
@@ -89,11 +93,19 @@ export default function ItemMasterPage() {
     }
   }
 
-  const filtered = useMemo(() => {
+  const displayed = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((i) => i.name.toLowerCase().includes(q));
-  }, [items, search]);
+    let list = q ? items.filter((i) => i.name.toLowerCase().includes(q)) : [...items];
+    list = [...list].sort((a, b) => {
+      if (sort === "az") return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      if (sort === "za") return b.name.localeCompare(a.name, undefined, { sensitivity: "base" });
+      const aTs = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTs = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (sort === "newest") return bTs - aTs;
+      return aTs - bTs;
+    });
+    return list;
+  }, [items, search, sort]);
 
   if (authLoading || !session) {
     return <p className="text-sm text-slate-500">Loading…</p>;
@@ -139,13 +151,35 @@ export default function ItemMasterPage() {
         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
       />
 
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: "az" as const, label: "A–Z" },
+            { id: "za" as const, label: "Z–A" },
+            { id: "newest" as const, label: "Newest" },
+            { id: "oldest" as const, label: "Oldest" },
+          ] as const
+        ).map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setSort(s.id)}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+              sort === s.id ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {loading ? (
         <p className="text-sm text-slate-500">Loading…</p>
       ) : (
         <ul className="space-y-2">
-          {filtered.map((row) => (
+          {displayed.map((row) => (
             <li
               key={row.id}
               className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
@@ -162,7 +196,9 @@ export default function ItemMasterPage() {
               </label>
             </li>
           ))}
-          {filtered.length === 0 ? <p className="text-sm text-slate-500">No items match.</p> : null}
+          {displayed.length === 0 ? (
+            <p className="text-sm text-slate-500">{items.length === 0 ? "No items yet." : "No items match."}</p>
+          ) : null}
         </ul>
       )}
 

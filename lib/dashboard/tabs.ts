@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 
 import type { UserRole } from "@/lib/auth/types";
 import {
+  IconAttendance,
   IconBill,
   IconCashbook,
   IconHome,
@@ -33,6 +34,7 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
         { href: "/dashboard/indents", label: "Indent", icon: IconIndent },
         { href: "/dashboard/master-bill", label: "Master Bill", icon: IconBill },
+        { href: "/dashboard/attendance", label: "Attendance", icon: IconAttendance },
       ];
     case "ops":
       return [
@@ -43,6 +45,7 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
         { href: "/dashboard/indents", label: "Indent", icon: IconIndent },
         { href: "/dashboard/vendors", label: "Vendors", icon: IconVendors },
+        { href: "/dashboard/attendance", label: "Attendance", icon: IconAttendance },
       ];
     case "staff":
       return [
