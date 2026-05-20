@@ -87,7 +87,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ count: count ?? 0 });
   }
 
-  let query = supabase.from("tasks").select("*").eq("is_active", true).order("created_at", { ascending: false });
+  let query = supabase
+    .from("tasks")
+    .select("*")
+    .eq("is_active", true)
+    .not("status", "in", '("cancelled","closed")')
+    .order("created_at", { ascending: false });
 
   if (isCeo && assigneeFilter) {
     query = query.eq("assignee_id", assigneeFilter);

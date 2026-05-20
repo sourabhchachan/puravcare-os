@@ -134,7 +134,8 @@ function TasksListInner() {
   }, [load]);
 
   const sortedTasks = useMemo(() => {
-    return [...tasks].sort((a, b) => {
+    const visible = tasks.filter((t) => t.status !== "cancelled" && t.status !== "closed");
+    return [...visible].sort((a, b) => {
       if (sortBy === "priority") {
         return (PRIORITY_ORDER[a.priority] ?? 999) - (PRIORITY_ORDER[b.priority] ?? 999);
       }
