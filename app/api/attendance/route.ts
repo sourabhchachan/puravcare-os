@@ -37,12 +37,12 @@ export async function GET(request: Request) {
 
     let q = supabase
       .from("attendance")
-      .select("id, user_id, attendance_date, punch_in, punch_out, users(full_name)")
-      .order("attendance_date", { ascending: false })
+      .select("id, user_id, date, punch_in, punch_out, users(full_name)")
+      .order("date", { ascending: false })
       .order("punch_in", { ascending: false });
 
-    if (from) q = q.gte("attendance_date", from);
-    if (to) q = q.lte("attendance_date", to);
+    if (from) q = q.gte("date", from);
+    if (to) q = q.lte("date", to);
 
     const { data, error } = await q;
     if (error) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
         id: r.id as string,
         user_id: r.user_id as string,
         user_name: userNameFromJoin(r.users),
-        attendance_date: r.attendance_date as string,
+        date: r.date as string,
         punch_in: punchIn,
         punch_out: punchOut,
         total_hours: punchOut ? hoursBetween(punchIn, punchOut) : null,
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
     .from("attendance")
     .select("*")
     .eq("user_id", actorId!)
-    .eq("attendance_date", today)
+    .eq("date", today)
     .order("punch_in", { ascending: true });
 
   if (error) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
       .from("attendance")
       .select("id")
       .eq("user_id", actorId!)
-      .eq("attendance_date", today)
+      .eq("date", today)
       .is("punch_out", null)
       .maybeSingle();
 
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
       .from("attendance")
       .insert({
         user_id: actorId!,
-        attendance_date: today,
+        date: today,
         punch_in: nowIso,
       })
       .select("*")
@@ -149,7 +149,7 @@ export async function POST(request: Request) {
     .from("attendance")
     .select("*")
     .eq("user_id", actorId!)
-    .eq("attendance_date", today)
+    .eq("date", today)
     .is("punch_out", null)
     .maybeSingle();
 

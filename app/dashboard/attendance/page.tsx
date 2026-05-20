@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/hooks/useAuth";
 type RecordRow = {
   id: string;
   user_name: string;
-  attendance_date: string;
+  date: string;
   punch_in: string;
   punch_out: string | null;
   total_hours: number | null;
@@ -92,7 +92,7 @@ export default function AttendancePage() {
       }
       const rows = shown.map((r) => ({
         "User name": r.user_name,
-        Date: r.attendance_date,
+        Date: r.date,
         "Punch in": formatTime(r.punch_in),
         "Punch out": r.punch_out ? formatTime(r.punch_out) : "",
         "Total hours": r.total_hours ?? "",
@@ -184,7 +184,7 @@ export default function AttendancePage() {
           {shown.map((r) => (
             <li key={r.id} className="rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
               <p className="font-semibold text-slate-900">{r.user_name}</p>
-              <p className="text-xs text-slate-600">{formatDate(r.attendance_date)}</p>
+              <p className="text-xs text-slate-600">{formatDate(r.date)}</p>
               <p className="mt-2 text-xs text-slate-700">
                 In: {formatTime(r.punch_in)}
                 {r.punch_out ? ` · Out: ${formatTime(r.punch_out)}` : " · Still in"}
