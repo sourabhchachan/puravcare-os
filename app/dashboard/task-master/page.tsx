@@ -84,6 +84,32 @@ export default function TaskMasterPage() {
     }
   }
 
+  async function deleteTemplate(t: Template) {
+    if (!session || session.role !== "ceo") return;
+    if (!confirm(`Delete template “${t.title}”? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/task-master/${t.id}`, {
+        method: "DELETE",
+        headers: { "x-actor-id": session.id },
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(
+          data.error === "template_in_use"
+            ? "Cannot delete: active tasks use this template"
+            : data.error === "forbidden"
+              ? "Access denied"
+              : "Could not delete template",
+        );
+        return;
+      }
+      toast.success("Template deleted");
+      await load();
+    } catch {
+      toast.error("Could not delete template");
+    }
+  }
+
   if (authLoading || !session) {
     return <p className="text-sm text-slate-500">Loading…</p>;
   }
@@ -135,14 +161,25 @@ export default function TaskMasterPage() {
                     .join(" · ") || "Not visible to staff or vendor"}
                 </p>
               </button>
-              <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
-                <span>Active</span>
-                <input
-                  type="checkbox"
-                  checked={t.is_active}
-                  onChange={(e) => void toggleActive(t, e.target.checked)}
-                />
-              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                  <span>Active</span>
+                  <input
+                    type="checkbox"
+                    checked={t.is_active}
+                    onChange={(e) => void toggleActive(t, e.target.checked)}
+                  />
+                </label>
+                {session.role === "ceo" ? (
+                  <button
+                    type="button"
+                    onClick={() => void deleteTemplate(t)}
+                    className="text-xs font-semibold text-red-600"
+                  >
+                    Delete
+                  </button>
+                ) : null}
+              </div>
             </li>
           ))}
           {templates.length === 0 ? <p className="text-sm text-slate-500">No templates yet.</p> : null}

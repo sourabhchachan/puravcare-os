@@ -63,3 +63,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (error || !data) return NextResponse.json({ error: "update_failed" }, { status: 500 });
   return NextResponse.json({ template: data });
 }
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const actorId = getActorId(request);
+  if (!(await assertActiveUser(actorId)) || !(await assertCeo(actorId))) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const supabase = createServiceClient();
+  const { data: template } = await supabase.from("task_master").select("id").eq("id", id).maybeSingle();
+  if (!template) return NextResponse.json({ error: "not_found" }, { status: 404 });
+
+  const { count } = await supabase
+    .from("tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("task_master_id", id)
+    .eq("is_active", true);
+
+  if ((count ?? 0) > 0) {
+    return NextResponse.json({ error: "template_in_use" }, { status: 400 });
+  }
+
+  const { error } = await supabase.from("task_master").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: "delete_failed" }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
