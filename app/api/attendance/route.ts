@@ -15,6 +15,19 @@ function userNameFromJoin(users: unknown): string {
   return u?.full_name ?? "—";
 }
 
+async function findOpenSession(supabase: ReturnType<typeof createServiceClient>, userId: string) {
+  const { data, error } = await supabase
+    .from("attendance")
+    .select("*")
+    .eq("user_id", userId)
+    .is("punch_out", null)
+    .order("punch_in", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return { row: null, error };
+  return { row: data, error: null };
+}
+
 export async function GET(request: Request) {
   const actorId = getActorId(request);
   if (!(await assertActiveUser(actorId))) {
@@ -69,21 +82,23 @@ export async function GET(request: Request) {
   }
 
   const today = kolkataToday();
-  const { data: rows, error } = await supabase
-    .from("attendance")
-    .select("*")
-    .eq("user_id", actorId!)
-    .eq("date", today)
-    .order("punch_in", { ascending: true });
+  const [{ data: rows, error }, openResult] = await Promise.all([
+    supabase
+      .from("attendance")
+      .select("*")
+      .eq("user_id", actorId!)
+      .eq("date", today)
+      .order("punch_in", { ascending: true }),
+    findOpenSession(supabase, actorId!),
+  ]);
 
-  if (error) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+  if (error || openResult.error) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
 
   const list = rows ?? [];
-  const openRecord = list.find((r) => !r.punch_out) ?? null;
 
   return NextResponse.json({
     date: today,
-    open_record: openRecord,
+    open_record: openResult.row,
     today_records: list,
   });
 }
@@ -116,16 +131,11 @@ export async function POST(request: Request) {
   const nowIso = new Date().toISOString();
 
   if (action === "punch_in") {
-    const { data: open } = await supabase
-      .from("attendance")
-      .select("id")
-      .eq("user_id", actorId!)
-      .eq("date", today)
-      .is("punch_out", null)
-      .maybeSingle();
+    const { row: open, error: openErr } = await findOpenSession(supabase, actorId!);
+    if (openErr) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
 
     if (open) {
-      return NextResponse.json({ error: "already_punched_in" }, { status: 400 });
+      return NextResponse.json({ error: "already_punched_in", open_session: open }, { status: 400 });
     }
 
     const { data: inserted, error } = await supabase
@@ -145,13 +155,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ record: inserted });
   }
 
-  const { data: openRow, error: openErr } = await supabase
-    .from("attendance")
-    .select("*")
-    .eq("user_id", actorId!)
-    .eq("date", today)
-    .is("punch_out", null)
-    .maybeSingle();
+  const { row: openRow, error: openErr } = await findOpenSession(supabase, actorId!);
 
   if (openErr) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
   if (!openRow) {
