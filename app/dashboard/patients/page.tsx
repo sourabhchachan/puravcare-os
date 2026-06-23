@@ -109,9 +109,11 @@ export default function PatientsPage() {
     <div className="space-y-4 pb-8">
       <div className="flex items-start justify-between gap-2">
         <h1 className="text-xl font-semibold text-gray-900">Patients</h1>
-        <Link href="/dashboard/patients/new" className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-all active:scale-95 hover:bg-blue-700">
-          New Patient
-        </Link>
+        {session.role === "ceo" || session.role === "ops" ? (
+          <Link href="/dashboard/patients/new" className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-all active:scale-95 hover:bg-blue-700">
+            New Patient
+          </Link>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2">

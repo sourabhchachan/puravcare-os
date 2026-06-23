@@ -276,6 +276,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   if (action === "dispatch") {
     if (row.status !== "pending") return NextResponse.json({ error: "invalid_state" }, { status: 400 });
+    if (
+      row.created_by != null &&
+      actorId != null &&
+      String(row.created_by) === String(actorId)
+    ) {
+      return NextResponse.json({ error: "cannot_dispatch_own_indent" }, { status: 403 });
+    }
     if (role === "vendor") {
       const { data: link } = await supabase.from("vendor_users").select("vendor_id").eq("user_id", actorId!).maybeSingle();
       if (!link || link.vendor_id !== vendorId) return NextResponse.json({ error: "forbidden" }, { status: 403 });

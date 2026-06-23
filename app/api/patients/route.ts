@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { assertActiveUser, getActorId } from "@/lib/api/actor";
+import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -59,6 +59,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const actorId = getActorId(request);
   if (!(await assertActiveUser(actorId))) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const role = await getUserRole(actorId);
+  if (!["ceo", "ops"].includes(role ?? "")) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

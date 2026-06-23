@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { assertActiveUser, getActorId } from "@/lib/api/actor";
+import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -40,7 +40,8 @@ export async function GET(request: Request) {
   }
 
   const supabase = createServiceClient();
-  const isCeo = await assertCeo(actorId!);
+  const role = await getUserRole(actorId);
+  const isCeo = role === "ceo";
 
   let books: CashbookRow[] = [];
   if (isCeo) {
