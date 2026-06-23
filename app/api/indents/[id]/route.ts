@@ -193,6 +193,39 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     });
     if (eventErr) return NextResponse.json({ error: "event_log_failed" }, { status: 500 });
 
+    const indentItemId = (row.item_id as string | null) ?? null;
+    let inventoryItem: { id: string; track_inventory: boolean } | null = null;
+    if (indentItemId) {
+      const { data: byId } = await supabase
+        .from("items")
+        .select("id, track_inventory")
+        .eq("id", indentItemId)
+        .maybeSingle();
+      inventoryItem = byId as { id: string; track_inventory: boolean } | null;
+    } else {
+      const { data: byName } = await supabase
+        .from("items")
+        .select("id, track_inventory")
+        .eq("vendor_id", vendorId)
+        .eq("name", row.item_description as string)
+        .maybeSingle();
+      inventoryItem = byName as { id: string; track_inventory: boolean } | null;
+    }
+
+    if (inventoryItem?.track_inventory) {
+      const qty = Number(row.quantity);
+      if (Number.isFinite(qty) && qty > 0) {
+        const { error: stockOutErr } = await supabase.from("inventory_transactions").insert({
+          item_id: inventoryItem.id,
+          transaction_type: "stock_out",
+          quantity: qty,
+          reference_id: id,
+          created_by: actorId!,
+        });
+        if (stockOutErr) return NextResponse.json({ error: "inventory_stock_out_failed" }, { status: 500 });
+      }
+    }
+
     return NextResponse.json({
       indent: deliveredRow,
       message: "Indent received and added to billing/invoice",
