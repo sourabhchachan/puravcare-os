@@ -50,7 +50,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { data: transactions, error } = await supabase
     .from("inventory_transactions")
     .select(
-      "id, transaction_type, quantity, created_at, created_by, reference_id, inventory_stock_id, users(full_name), inventory_stock(batch_number, invoice_number, expiry_date, purchase_price)",
+      "id, transaction_type, quantity, note, created_at, created_by, reference_id, inventory_stock_id, users(full_name), inventory_stock(batch_number, invoice_number, expiry_date, purchase_price)",
     )
     .eq("item_id", itemId)
     .order("created_at", { ascending: false });
@@ -68,6 +68,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       date: t.created_at as string,
       transaction_type: t.transaction_type as string,
       quantity: t.quantity as number,
+      reason: (t.note as string | null) ?? null,
       batch_number: stockRow?.batch_number ?? null,
       invoice_number: stockRow?.invoice_number ?? null,
       expiry_date: stockRow?.expiry_date ?? null,

@@ -19,6 +19,7 @@ type HistoryRow = {
   date: string;
   transaction_type: string;
   quantity: number;
+  reason: string | null;
   batch_number: string | null;
   invoice_number: string | null;
   added_by_name: string;
@@ -127,7 +128,17 @@ function formatDt(iso: string) {
 }
 
 function typeLabel(t: string) {
-  return t === "stock_in" ? "Stock in" : t === "stock_out" ? "Stock out" : t.replace(/_/g, " ");
+  if (t === "stock_in") return "Stock in";
+  if (t === "stock_out") return "Stock out";
+  if (t === "adjustment") return "Adjustment";
+  return t.replace(/_/g, " ");
+}
+
+function formatQty(t: string, quantity: number) {
+  if (t === "adjustment") {
+    return quantity > 0 ? `+${quantity}` : String(quantity);
+  }
+  return String(quantity);
 }
 
 export default function InventoryPage() {
@@ -139,10 +150,12 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortId>("az");
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
+  const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
   const [stockInOpen, setStockInOpen] = useState(false);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
 
   const isCeoOrOps = session?.role === "ceo" || session?.role === "ops";
+  const isCeo = session?.role === "ceo";
   const isVendor = session?.role === "vendor";
   const canAccess = isCeoOrOps || isVendor;
 
@@ -269,13 +282,7 @@ export default function InventoryPage() {
         <ul className="space-y-2">
           {displayed.map((row) => (
             <li key={row.item_id}>
-              <button
-                type="button"
-                onClick={() => isCeoOrOps && setHistoryItem(row)}
-                className={`w-full rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm ${
-                  isCeoOrOps ? "transition hover:border-[#2563EB]/40" : ""
-                }`}
-              >
+              <div className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold text-slate-900">{row.item_name}</p>
                   {row.is_low_stock ? (
@@ -290,10 +297,27 @@ export default function InventoryPage() {
                 <p className="mt-1 text-xs text-slate-500">
                   Min threshold: {row.min_stock_threshold != null ? row.min_stock_threshold : "—"}
                 </p>
-                {isCeoOrOps ? (
-                  <p className="mt-2 text-xs font-medium text-[#2563EB]">View history →</p>
-                ) : null}
-              </button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {isCeoOrOps ? (
+                    <button
+                      type="button"
+                      onClick={() => setHistoryItem(row)}
+                      className="text-xs font-medium text-[#2563EB]"
+                    >
+                      View history →
+                    </button>
+                  ) : null}
+                  {isCeo ? (
+                    <button
+                      type="button"
+                      onClick={() => setAdjustItem(row)}
+                      className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"
+                    >
+                      Adjust Stock
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             </li>
           ))}
           {displayed.length === 0 ? (
@@ -307,6 +331,19 @@ export default function InventoryPage() {
           sessionId={session.id}
           item={historyItem}
           onClose={() => setHistoryItem(null)}
+        />
+      ) : null}
+
+      {adjustItem && session && isCeo ? (
+        <AdjustStockSheet
+          sessionId={session.id}
+          item={adjustItem}
+          onClose={() => setAdjustItem(null)}
+          onSaved={() => {
+            setAdjustItem(null);
+            toast.success("Stock adjusted");
+            void load();
+          }}
         />
       ) : null}
 
@@ -383,7 +420,8 @@ function HistorySheet({
       const rows = history.map((h) => ({
         Date: formatDt(h.date),
         Type: typeLabel(h.transaction_type),
-        Quantity: h.quantity,
+        Quantity: formatQty(h.transaction_type, h.quantity),
+        Reason: h.reason ?? "",
         "Batch number": h.batch_number ?? "",
         "Invoice number": h.invoice_number ?? "",
         "Added by": h.added_by_name,
@@ -425,17 +463,143 @@ function HistorySheet({
               <li key={h.id} className="rounded-lg border border-slate-200 p-3 text-sm">
                 <p className="text-xs text-slate-500">{formatDt(h.date)}</p>
                 <p className="mt-1 font-semibold text-slate-900">
-                  {typeLabel(h.transaction_type)} · Qty {h.quantity}
+                  {typeLabel(h.transaction_type)} · Qty{" "}
+                  <span
+                    className={
+                      h.transaction_type === "adjustment"
+                        ? h.quantity > 0
+                          ? "text-emerald-700"
+                          : "text-red-700"
+                        : ""
+                    }
+                  >
+                    {formatQty(h.transaction_type, h.quantity)}
+                  </span>
                 </p>
-                <p className="mt-1 text-xs text-slate-600">
-                  Batch: {h.batch_number ?? "—"} · Invoice: {h.invoice_number ?? "—"}
-                </p>
+                {h.transaction_type === "adjustment" && h.reason ? (
+                  <p className="mt-1 text-xs text-slate-600">Reason: {h.reason}</p>
+                ) : null}
+                {h.transaction_type !== "adjustment" ? (
+                  <p className="mt-1 text-xs text-slate-600">
+                    Batch: {h.batch_number ?? "—"} · Invoice: {h.invoice_number ?? "—"}
+                  </p>
+                ) : null}
                 <p className="mt-1 text-xs text-slate-600">By: {h.added_by_name}</p>
               </li>
             ))}
             {history.length === 0 ? <p className="text-sm text-slate-500">No transactions yet.</p> : null}
           </ul>
         )}
+      </div>
+    </div>
+  );
+}
+
+function AdjustStockSheet({
+  sessionId,
+  item,
+  onClose,
+  onSaved,
+}: {
+  sessionId: string;
+  item: InventoryItem;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [quantity, setQuantity] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    const qty = Number(quantity);
+    const trimmedReason = reason.trim();
+
+    if (!Number.isFinite(qty) || qty === 0) {
+      setError("Enter a non-zero quantity (positive to add, negative to reduce).");
+      toast.error("Enter a valid quantity.");
+      return;
+    }
+    if (!trimmedReason) {
+      setError("Reason is required.");
+      toast.error("Reason is required.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/inventory/adjust", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
+        body: JSON.stringify({
+          item_id: item.item_id,
+          quantity: qty,
+          reason: trimmedReason,
+        }),
+      });
+      const data = (await res.json()) as { error?: string; current_stock?: number };
+      if (!res.ok) {
+        const msg = data.error ?? "Could not adjust stock";
+        setError(msg);
+        toast.error(msg);
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Could not adjust stock");
+      toast.error("Could not adjust stock");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+      <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
+      <div className="mx-auto max-h-[90vh] w-full max-w-[430px] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-[#2563EB]">Adjust stock</h2>
+        <p className="mt-1 text-sm text-slate-600">{item.item_name}</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Current stock: <span className="font-semibold text-slate-800">{item.current_stock}</span>
+        </p>
+        <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">
+              Quantity (positive to add, negative to reduce)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Reason</label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              placeholder="Why is this adjustment needed?"
+              required
+            />
+          </div>
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Submit adjustment"}
+          </button>
+        </form>
       </div>
     </div>
   );

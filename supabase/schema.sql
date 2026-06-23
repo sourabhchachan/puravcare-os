@@ -840,13 +840,21 @@ CREATE TABLE IF NOT EXISTS public.inventory_stock (
 CREATE TABLE IF NOT EXISTS public.inventory_transactions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   item_id uuid NOT NULL REFERENCES public.items (id) ON DELETE CASCADE,
-  transaction_type text NOT NULL CHECK (transaction_type IN ('stock_in', 'stock_out')),
+  transaction_type text NOT NULL CHECK (transaction_type IN ('stock_in', 'stock_out', 'adjustment')),
   quantity numeric(10, 2) NOT NULL,
   reference_id uuid,
   inventory_stock_id uuid REFERENCES public.inventory_stock (id) ON DELETE SET NULL,
+  note text,
   created_by uuid REFERENCES public.users (id),
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.inventory_transactions
+  DROP CONSTRAINT IF EXISTS inventory_transactions_transaction_type_check;
+ALTER TABLE public.inventory_transactions
+  ADD CONSTRAINT inventory_transactions_transaction_type_check
+  CHECK (transaction_type IN ('stock_in', 'stock_out', 'adjustment'));
+ALTER TABLE public.inventory_transactions ADD COLUMN IF NOT EXISTS note text;
 
 CREATE INDEX IF NOT EXISTS inventory_stock_item_id_idx ON public.inventory_stock (item_id);
 CREATE INDEX IF NOT EXISTS inventory_stock_expiry_date_idx ON public.inventory_stock (expiry_date);
