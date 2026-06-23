@@ -35,6 +35,8 @@ export default function NewPatientPage() {
     [saving, fullName, admissionType, bedNumber, ipdNumber],
   );
 
+  const isCeo = session?.role === "ceo";
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!session) return;
@@ -61,7 +63,7 @@ export default function NewPatientPage() {
           admission_type: admissionType,
           bed_number: admissionType === "ipd" ? bedNumber.trim() : null,
           ipd_number: admissionType === "ipd" ? ipdNumber.trim() || null : null,
-          admission_date: new Date(admissionDate).toISOString(),
+          ...(isCeo ? { admission_date: new Date(admissionDate).toISOString() } : {}),
         }),
       });
       const body = (await response.json()) as { error?: string; patient?: { id: string } };
@@ -172,15 +174,17 @@ export default function NewPatientPage() {
           </div>
         ) : null}
 
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">Admission Date</label>
-          <input
-            type="datetime-local"
-            value={admissionDate}
-            onChange={(e) => setAdmissionDate(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
-          />
-        </div>
+        {isCeo ? (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Admission Date</label>
+            <input
+              type="datetime-local"
+              value={admissionDate}
+              onChange={(e) => setAdmissionDate(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+            />
+          </div>
+        ) : null}
 
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 

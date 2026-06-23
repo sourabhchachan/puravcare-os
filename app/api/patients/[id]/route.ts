@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
+import { assertCeo } from "@/lib/api/ceo";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type PatchBody = {
   action?: string;
+  admission_date?: string | null;
 };
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -107,8 +109,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  if (!["discharge", "readmit"].includes(body.action ?? "")) {
+  if (!["discharge", "readmit", "update"].includes(body.action ?? "")) {
     return NextResponse.json({ error: "invalid_action" }, { status: 400 });
+  }
+
+  const { id } = await params;
+  const supabase = createServiceClient();
+
+  if (body.action === "update") {
+    if (!(await assertCeo(actorId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    if (body.admission_date === undefined) {
+      return NextResponse.json({ error: "no_updates" }, { status: 400 });
+    }
+    const admissionDate = new Date(body.admission_date ?? "");
+    if (Number.isNaN(admissionDate.getTime())) {
+      return NextResponse.json({ error: "invalid_admission_date" }, { status: 400 });
+    }
+    const { data: existing } = await supabase.from("patients").select("id").eq("id", id).maybeSingle();
+    if (!existing) return NextResponse.json({ error: "not_found" }, { status: 404 });
+    const { error: updateErr } = await supabase
+      .from("patients")
+      .update({ admission_date: admissionDate.toISOString() })
+      .eq("id", id);
+    if (updateErr) return NextResponse.json({ error: "update_failed" }, { status: 500 });
+    return NextResponse.json({ ok: true });
   }
 
   const role = await getUserRole(actorId);
@@ -119,8 +145,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
-  const supabase = createServiceClient();
   const { data: patient } = await supabase.from("patients").select("id, status").eq("id", id).maybeSingle();
   if (!patient) return NextResponse.json({ error: "not_found" }, { status: 404 });
 

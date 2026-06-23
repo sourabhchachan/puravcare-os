@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId } from "@/lib/api/actor";
+import { assertCeo } from "@/lib/api/ceo";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type PostBody = {
@@ -101,7 +102,9 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   const uhid = nextUhidFrom((lastRow?.uhid as string | undefined) ?? null);
-  const admissionDate = body.admission_date ? new Date(body.admission_date) : new Date();
+  const isCeo = await assertCeo(actorId!);
+  const admissionDate =
+    isCeo && body.admission_date ? new Date(body.admission_date) : new Date();
   if (Number.isNaN(admissionDate.getTime())) {
     return NextResponse.json({ error: "invalid_admission_date" }, { status: 400 });
   }
