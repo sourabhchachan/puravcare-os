@@ -35,6 +35,14 @@ function ChevronRight({ className }: { className?: string }) {
   );
 }
 
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} aria-hidden>
+      <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 const ceoLinks = [
   { href: "/dashboard/users", label: "User Management" },
   { href: "/dashboard/task-master", label: "Task Master" },
@@ -84,6 +92,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       cancelled = true;
     };
   }, [session]);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setProfileOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [profileOpen]);
 
   const tabs = useMemo(
     () => (session ? getDashboardTabs(session.role, { isMrdMember }) : []),
@@ -143,14 +160,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       {profileOpen ? (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" role="presentation">
+        <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Profile menu">
           <button
             type="button"
             aria-label="Close profile"
-            className="flex-1"
+            className="absolute inset-0 bg-black/40"
             onClick={() => setProfileOpen(false)}
           />
-          <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-2xl">
+          <div className="relative z-10 mx-auto flex max-h-[min(85vh,720px)] w-full max-w-[430px] flex-col rounded-t-2xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
+              <Link
+                href="/dashboard"
+                className="text-sm font-semibold text-[#2563EB]"
+                onClick={() => setProfileOpen(false)}
+              >
+                ← Back to Dashboard
+              </Link>
+              <button
+                type="button"
+                aria-label="Close menu"
+                onClick={() => setProfileOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto px-5 pb-5 pt-3">
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
             <p className="text-lg font-semibold text-slate-900">{session.full_name}</p>
             <p className="text-sm text-slate-500">
@@ -275,6 +310,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               Sign Out
             </button>
+            </div>
           </div>
         </div>
       ) : null}
