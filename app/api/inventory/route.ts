@@ -20,12 +20,20 @@ export async function GET(request: Request) {
   if (!(await assertActiveUser(actorId))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  if (!(await assertCeoOrOps(actorId))) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
 
+  const role = await getUserRole(actorId);
   const supabase = createServiceClient();
+
   try {
+    if (role === "vendor") {
+      const vendor = await getVendorForUser(actorId!);
+      if (!vendor) return NextResponse.json({ items: [] });
+      const levels = await fetchStockLevels(supabase, { vendorId: (vendor as { id: string }).id });
+      return NextResponse.json({ items: levels });
+    }
+    if (!(await assertCeoOrOps(actorId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
     const levels = await fetchStockLevels(supabase);
     return NextResponse.json({ items: levels });
   } catch {

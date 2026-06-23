@@ -7,6 +7,7 @@ import {
   IconCashbook,
   IconHome,
   IconIndent,
+  IconInventory,
   IconInvoice,
   IconNotice,
   IconPending,
@@ -35,6 +36,7 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/indents", label: "Indent", icon: IconIndent },
         { href: "/dashboard/master-bill", label: "Master Bill", icon: IconBill },
         { href: "/dashboard/attendance", label: "Attendance", icon: IconAttendance },
+        { href: "/dashboard/inventory", label: "Inventory", icon: IconInventory },
       ];
     case "ops":
       return [
@@ -46,6 +48,7 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/indents", label: "Indent", icon: IconIndent },
         { href: "/dashboard/vendors", label: "Vendors", icon: IconVendors },
         { href: "/dashboard/attendance", label: "Attendance", icon: IconAttendance },
+        { href: "/dashboard/inventory", label: "Inventory", icon: IconInventory },
       ];
     case "staff":
       return [
@@ -63,6 +66,7 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/pending", label: "Pending", icon: IconPending },
         { href: "/dashboard/dispatched", label: "Dispatched", icon: IconTruck },
         { href: "/dashboard/invoices", label: "Invoices", icon: IconInvoice },
+        { href: "/dashboard/inventory", label: "Inventory", icon: IconInventory },
       ];
     default:
       return [];
