@@ -27,7 +27,7 @@ function LoginPageScreen() {
   useEffect(() => {
     const existing = getStoredSession();
     if (!existing) return;
-    if (existing.must_change_password) router.replace("/change-password");
+    if (existing.must_change_password) router.replace("/change-pin");
     else router.replace("/dashboard");
   }, [router]);
 
@@ -71,7 +71,7 @@ function LoginPageScreen() {
       toast.success(`Welcome back, ${first}`);
 
       if (payload.user.must_change_password) {
-        router.replace("/change-password");
+        router.replace("/change-pin");
         return;
       }
 

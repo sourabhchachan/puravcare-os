@@ -9,14 +9,22 @@ import { clearStoredSession, getStoredSession, setStoredSession } from "@/lib/au
 type UseAuthOptions = {
   /** Redirect to /login when no session */
   requireSession?: boolean;
-  /** When on dashboard routes: redirect to /change-password if user must reset password */
+  /** When on dashboard routes: redirect to /change-pin if user must reset PIN */
+  enforcePinChange?: boolean;
+  /** When on /change-pin: redirect to /dashboard if PIN change not required */
+  pinChangeRoute?: boolean;
+  /** @deprecated use enforcePinChange */
   enforcePasswordChange?: boolean;
-  /** When on /change-password: redirect to /dashboard if password change not required */
+  /** @deprecated use pinChangeRoute */
   passwordChangeRoute?: boolean;
 };
 
 export function useAuth(options: UseAuthOptions = {}) {
-  const { requireSession = false, enforcePasswordChange = false, passwordChangeRoute = false } = options;
+  const {
+    requireSession = false,
+    enforcePinChange = options.enforcePinChange ?? options.enforcePasswordChange ?? false,
+    pinChangeRoute = options.pinChangeRoute ?? options.passwordChangeRoute ?? false,
+  } = options;
   const router = useRouter();
   const pathname = usePathname();
   const [session, setSession] = useState<SessionUser | null>(null);
@@ -39,15 +47,15 @@ export function useAuth(options: UseAuthOptions = {}) {
       return;
     }
 
-    if (requireSession && session && passwordChangeRoute && !session.must_change_password) {
+    if (requireSession && session && pinChangeRoute && !session.must_change_password) {
       router.replace("/dashboard");
       return;
     }
 
-    if (requireSession && session && enforcePasswordChange && session.must_change_password) {
-      router.replace("/change-password");
+    if (requireSession && session && enforcePinChange && session.must_change_password) {
+      router.replace("/change-pin");
     }
-  }, [loading, requireSession, enforcePasswordChange, passwordChangeRoute, session, router]);
+  }, [loading, requireSession, enforcePinChange, pinChangeRoute, session, router]);
 
   const signOut = useCallback(() => {
     clearStoredSession();

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useToast } from "@/components/ui/ToastProvider";
+import { SYSTEM_ADMIN_LOGIN_ID } from "@/lib/api/pin";
 import { useAuth } from "@/lib/hooks/useAuth";
 
 type Permissions = {
@@ -32,6 +33,9 @@ export default function UsersManagementPage() {
   const [sort, setSort] = useState<UserSort>("az");
   const [addOpen, setAddOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserRow | null>(null);
+  const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
+
+  const canResetPin = session?.role === "ceo" || session?.login_id === SYSTEM_ADMIN_LOGIN_ID;
 
   const load = useCallback(async () => {
     if (!session || session.role !== "ceo") return;
@@ -139,28 +143,37 @@ export default function UsersManagementPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((u) => (
-            <button
+            <div
               key={u.id}
-              type="button"
-              onClick={() => setEditUser(u)}
-              className="flex w-full flex-col rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#2563EB]/40"
+              className="flex w-full flex-col rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm"
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-slate-900">{u.full_name}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                    u.is_active ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"
-                  }`}
+              <button type="button" onClick={() => setEditUser(u)} className="w-full text-left">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-900">{u.full_name}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      u.is_active ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {u.is_active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                  <span>Staff ID: {u.staff_id}</span>
+                  <span>Login: {u.login_id}</span>
+                  <span className="col-span-2 capitalize">Role: {u.role}</span>
+                </div>
+              </button>
+              {canResetPin ? (
+                <button
+                  type="button"
+                  onClick={() => setResetTarget(u)}
+                  className="mt-3 self-start rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800"
                 >
-                  {u.is_active ? "Active" : "Inactive"}
-                </span>
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                <span>Staff ID: {u.staff_id}</span>
-                <span>Login: {u.login_id}</span>
-                <span className="col-span-2 capitalize">Role: {u.role}</span>
-              </div>
-            </button>
+                  Reset PIN
+                </button>
+              ) : null}
+            </div>
           ))}
           {filtered.length === 0 ? <p className="text-sm text-slate-500">No users match.</p> : null}
         </div>
@@ -191,6 +204,84 @@ export default function UsersManagementPage() {
           }}
         />
       ) : null}
+
+      {resetTarget ? (
+        <ResetPinSheet
+          actorId={session.id}
+          user={resetTarget}
+          onClose={() => setResetTarget(null)}
+          onSaved={() => {
+            setResetTarget(null);
+            toast.success("PIN reset to 000000");
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ResetPinSheet({
+  actorId,
+  user,
+  onClose,
+  onSaved,
+}: {
+  actorId: string;
+  user: UserRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+
+  async function handleConfirm() {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/auth/reset-pin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-actor-id": actorId },
+        body: JSON.stringify({ user_id: user.id }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not reset PIN");
+        return;
+      }
+      onSaved();
+    } catch {
+      toast.error("Could not reset PIN");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
+      <button type="button" aria-label="Close" className="absolute inset-0" onClick={onClose} />
+      <div className="relative z-10 mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-slate-900">Reset PIN?</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Reset PIN for <span className="font-semibold">{user.full_name}</span> to 000000?
+        </p>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-slate-200 py-3 text-sm font-semibold text-slate-700"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void handleConfirm()}
+            className="flex-1 rounded-lg bg-amber-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Resetting…" : "Confirm"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { mustChangePin } from "@/lib/api/pin";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type Body = {
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
       full_name: user.full_name as string,
       role: user.role as "ceo" | "ops" | "staff" | "vendor",
       login_id: user.login_id as string,
-      must_change_password: Boolean(user.must_change_password),
+      must_change_password: mustChangePin(user.password_hash as string, user.must_change_password as boolean),
       can_create_tasks: perm ? perm.can_create_tasks !== false : true,
       can_create_items: Boolean(perm?.can_create_items),
     };

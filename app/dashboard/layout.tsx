@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
-import { ToastProvider } from "@/components/ui/ToastProvider";
+import { ToastProvider, useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { getDashboardTabs, isTabActive } from "@/lib/dashboard/tabs";
 
@@ -65,9 +65,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const { session, loading, signOut } = useAuth({
     requireSession: true,
-    enforcePasswordChange: true,
+    enforcePinChange: true,
   });
   const [profileOpen, setProfileOpen] = useState(false);
+  const [changePinOpen, setChangePinOpen] = useState(false);
   const [isMrdMember, setIsMrdMember] = useState(false);
 
   useEffect(() => {
@@ -304,6 +305,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             <button
               type="button"
+              className="mt-4 w-full rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              onClick={() => {
+                setProfileOpen(false);
+                setChangePinOpen(true);
+              }}
+            >
+              Change PIN
+            </button>
+
+            <button
+              type="button"
               className="mt-6 w-full rounded-xl py-3 text-sm font-semibold text-red-500 hover:bg-red-50"
               onClick={() => {
                 setProfileOpen(false);
@@ -316,7 +328,122 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       ) : null}
+
+      {changePinOpen && session ? (
+        <ChangePinSheet sessionId={session.id} onClose={() => setChangePinOpen(false)} />
+      ) : null}
       </div>
     </ToastProvider>
+  );
+}
+
+function ChangePinSheet({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
+  const toast = useToast();
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (!/^\d{6}$/.test(currentPin) || !/^\d{6}$/.test(newPin) || !/^\d{6}$/.test(confirmPin)) {
+      setError("All PIN fields must be exactly 6 digits.");
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setError("New PIN and confirmation do not match.");
+      return;
+    }
+    if (newPin === "000000") {
+      setError("PIN cannot be 000000.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/auth/change-pin", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
+        body: JSON.stringify({ current_pin: currentPin, new_pin: newPin }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        const msg =
+          data.error === "wrong_pin"
+            ? "Current PIN is incorrect."
+            : data.error === "invalid_new_pin"
+              ? "New PIN must be 6 digits and not 000000."
+              : "Could not update PIN.";
+        setError(msg);
+        toast.error(msg);
+        return;
+      }
+      toast.success("PIN updated");
+      onClose();
+    } catch {
+      setError("Could not update PIN.");
+      toast.error("Could not update PIN.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Change PIN">
+      <button type="button" aria-label="Close" className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative z-10 mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-2xl">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-[#2563EB]">Change PIN</h2>
+        <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Current PIN</label>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={currentPin}
+              onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ""))}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">New PIN</label>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Confirm new PIN</label>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={confirmPin}
+              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ""))}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              required
+            />
+          </div>
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Update PIN"}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }

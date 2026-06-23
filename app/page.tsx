@@ -11,7 +11,7 @@ export default function Home() {
   useEffect(() => {
     const s = getStoredSession();
     if (!s) router.replace("/login");
-    else if (s.must_change_password) router.replace("/change-password");
+    else if (s.must_change_password) router.replace("/change-pin");
     else router.replace("/dashboard");
   }, [router]);
 
