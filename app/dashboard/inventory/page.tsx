@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 import { useToast } from "@/components/ui/ToastProvider";
@@ -26,6 +26,98 @@ type HistoryRow = {
 
 type SortId = "az" | "za" | "stock_low" | "stock_high";
 
+type BulkStockRow = {
+  item_name: string;
+  quantity: number;
+  batch_number: string;
+  expiry_date: string;
+  purchase_price: number;
+  invoice_number: string;
+};
+
+type ParsedBulkRow = BulkStockRow & {
+  rowIndex: number;
+  errors: string[];
+};
+
+const BULK_COLUMNS = [
+  "item_name",
+  "quantity",
+  "batch_number",
+  "expiry_date",
+  "purchase_price",
+  "invoice_number",
+] as const;
+
+function downloadStockInTemplate() {
+  const ws = XLSX.utils.aoa_to_sheet([
+    [...BULK_COLUMNS],
+    ["Example Item", 10, "BATCH-001", "2026-12-31", 100, "INV-001"],
+  ]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Stock In");
+  XLSX.writeFile(wb, "stock-in-template.xlsx");
+}
+
+function parseExpiryFromCell(val: unknown): string | null {
+  if (val == null || val === "") return null;
+  if (typeof val === "number" && XLSX.SSF?.parse_date_code) {
+    const d = XLSX.SSF.parse_date_code(val);
+    if (d) {
+      return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
+    }
+  }
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s))) return s;
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return null;
+}
+
+function parseBulkExcel(
+  file: ArrayBuffer,
+  vendorItems: InventoryItem[]
+): ParsedBulkRow[] {
+  const wb = XLSX.read(file, { type: "array", cellDates: true });
+  const sheet = wb.Sheets[wb.SheetNames[0] ?? ""];
+  if (!sheet) return [];
+
+  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+  const nameSet = new Map(
+    vendorItems.map((i) => [i.item_name.trim().toLowerCase(), i.item_name])
+  );
+
+  return raw.map((row, idx) => {
+    const itemName = String(row.item_name ?? "").trim();
+    const quantity = Number(row.quantity);
+    const batchNumber = String(row.batch_number ?? "").trim();
+    const expiryDate = parseExpiryFromCell(row.expiry_date) ?? "";
+    const purchasePrice = Number(row.purchase_price);
+    const invoiceNumber = String(row.invoice_number ?? "").trim();
+    const errors: string[] = [];
+
+    if (!itemName || !nameSet.has(itemName.toLowerCase())) {
+      errors.push("Item name must match a tracked item mapped to your vendor");
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      errors.push("Quantity must be a positive number");
+    }
+
+    return {
+      rowIndex: idx + 2,
+      item_name: itemName,
+      quantity: Number.isFinite(quantity) ? quantity : 0,
+      batch_number: batchNumber,
+      expiry_date: expiryDate,
+      purchase_price: Number.isFinite(purchasePrice) ? purchasePrice : 0,
+      invoice_number: invoiceNumber,
+      errors,
+    };
+  }).filter((row) =>
+    row.item_name || row.batch_number || row.invoice_number || row.quantity > 0
+  );
+}
+
 function formatDt(iso: string) {
   try {
     return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -48,6 +140,7 @@ export default function InventoryPage() {
   const [sort, setSort] = useState<SortId>("az");
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
   const [stockInOpen, setStockInOpen] = useState(false);
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
 
   const isCeoOrOps = session?.role === "ceo" || session?.role === "ops";
   const isVendor = session?.role === "vendor";
@@ -112,13 +205,29 @@ export default function InventoryPage() {
           </p>
         </div>
         {isVendor ? (
-          <button
-            type="button"
-            onClick={() => setStockInOpen(true)}
-            className="shrink-0 rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white"
-          >
-            Add Stock
-          </button>
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => downloadStockInTemplate()}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-[#2563EB]"
+            >
+              Download Template
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkUploadOpen(true)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-[#2563EB]"
+            >
+              Upload Stock
+            </button>
+            <button
+              type="button"
+              onClick={() => setStockInOpen(true)}
+              className="rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white"
+            >
+              Add Stock
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -209,6 +318,18 @@ export default function InventoryPage() {
           onSaved={() => {
             setStockInOpen(false);
             toast.success("Stock added");
+            void load();
+          }}
+        />
+      ) : null}
+
+      {bulkUploadOpen && session && isVendor ? (
+        <BulkUploadSheet
+          sessionId={session.id}
+          items={items}
+          onClose={() => setBulkUploadOpen(false)}
+          onSaved={() => {
+            setBulkUploadOpen(false);
             void load();
           }}
         />
@@ -315,6 +436,227 @@ function HistorySheet({
             {history.length === 0 ? <p className="text-sm text-slate-500">No transactions yet.</p> : null}
           </ul>
         )}
+      </div>
+    </div>
+  );
+}
+
+function BulkUploadSheet({
+  sessionId,
+  items,
+  onClose,
+  onSaved,
+}: {
+  sessionId: string;
+  items: InventoryItem[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [parsedRows, setParsedRows] = useState<ParsedBulkRow[] | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{
+    succeeded: number;
+    failed: number;
+    failures: { index: number; item_name: string; reason: string }[];
+  } | null>(null);
+
+  const validRows = useMemo(
+    () => (parsedRows ?? []).filter((r) => r.errors.length === 0),
+    [parsedRows]
+  );
+  const invalidRows = useMemo(
+    () => (parsedRows ?? []).filter((r) => r.errors.length > 0),
+    [parsedRows]
+  );
+
+  async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".xlsx")) {
+      toast.error("Please upload an .xlsx file");
+      return;
+    }
+    try {
+      const buffer = await file.arrayBuffer();
+      const rows = parseBulkExcel(buffer, items);
+      if (!rows.length) {
+        toast.warning("No data rows found in the file");
+        setParsedRows(null);
+        setFileName("");
+        return;
+      }
+      setParsedRows(rows);
+      setFileName(file.name);
+      setResult(null);
+    } catch {
+      toast.error("Could not parse Excel file");
+      setParsedRows(null);
+      setFileName("");
+    }
+  }
+
+  async function handleConfirm() {
+    if (!validRows.length) {
+      toast.error("No valid rows to submit");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/inventory/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
+        body: JSON.stringify({
+          rows: validRows.map((r) => ({
+            item_name: r.item_name,
+            quantity: r.quantity,
+            batch_number: r.batch_number,
+            expiry_date: r.expiry_date,
+            purchase_price: r.purchase_price,
+            invoice_number: r.invoice_number,
+          })),
+        }),
+      });
+      const data = (await res.json()) as {
+        succeeded?: number;
+        failed?: number;
+        failures?: { index: number; item_name: string; reason: string }[];
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.error ?? "Bulk upload failed");
+        return;
+      }
+      setResult({
+        succeeded: data.succeeded ?? 0,
+        failed: data.failed ?? 0,
+        failures: data.failures ?? [],
+      });
+      if ((data.succeeded ?? 0) > 0) {
+        toast.success(`${data.succeeded} row(s) added`);
+        onSaved();
+      }
+      if ((data.failed ?? 0) > 0) {
+        toast.warning(`${data.failed} row(s) failed`);
+      }
+    } catch {
+      toast.error("Bulk upload failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+      <button type="button" className="flex-1" aria-label="Close" onClick={onClose} />
+      <div className="mx-auto max-h-[90vh] w-full max-w-[430px] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h2 className="text-lg font-semibold text-[#2563EB]">Upload stock</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Upload an Excel file using the template columns.
+        </p>
+
+        <label className="mt-4 flex cursor-pointer flex-col items-center rounded-lg border-2 border-dashed border-slate-300 px-4 py-6 text-center">
+          <span className="text-sm font-semibold text-[#2563EB]">Choose .xlsx file</span>
+          <span className="mt-1 text-xs text-slate-500">{fileName || "No file selected"}</span>
+          <input
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            className="hidden"
+            onChange={(e) => void handleFileChange(e)}
+          />
+        </label>
+
+        {parsedRows ? (
+          <div className="mt-4 space-y-4">
+            <p className="text-xs text-slate-600">
+              {validRows.length} valid · {invalidRows.length} invalid
+            </p>
+
+            {validRows.length > 0 ? (
+              <div>
+                <h3 className="text-xs font-semibold uppercase text-green-700">Valid rows</h3>
+                <div className="mt-2 max-h-40 overflow-auto rounded-lg border border-green-200">
+                  <table className="w-full text-left text-[10px]">
+                    <thead className="bg-green-50 text-green-800">
+                      <tr>
+                        <th className="px-2 py-1">Row</th>
+                        <th className="px-2 py-1">Item</th>
+                        <th className="px-2 py-1">Qty</th>
+                        <th className="px-2 py-1">Batch</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {validRows.map((r) => (
+                        <tr key={r.rowIndex} className="border-t border-green-100">
+                          <td className="px-2 py-1">{r.rowIndex}</td>
+                          <td className="px-2 py-1">{r.item_name}</td>
+                          <td className="px-2 py-1">{r.quantity}</td>
+                          <td className="px-2 py-1">{r.batch_number || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {invalidRows.length > 0 ? (
+              <div>
+                <h3 className="text-xs font-semibold uppercase text-red-700">Invalid rows</h3>
+                <div className="mt-2 max-h-40 overflow-auto rounded-lg border border-red-200">
+                  <table className="w-full text-left text-[10px]">
+                    <thead className="bg-red-50 text-red-800">
+                      <tr>
+                        <th className="px-2 py-1">Row</th>
+                        <th className="px-2 py-1">Item</th>
+                        <th className="px-2 py-1">Errors</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invalidRows.map((r) => (
+                        <tr key={r.rowIndex} className="border-t border-red-100">
+                          <td className="px-2 py-1">{r.rowIndex}</td>
+                          <td className="px-2 py-1">{r.item_name || "—"}</td>
+                          <td className="px-2 py-1 text-red-700">{r.errors.join("; ")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {result ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                <p>
+                  Submitted: <span className="font-semibold text-green-700">{result.succeeded}</span>{" "}
+                  succeeded, <span className="font-semibold text-red-700">{result.failed}</span> failed
+                </p>
+                {result.failures.length > 0 ? (
+                  <ul className="mt-2 space-y-1">
+                    {result.failures.map((f) => (
+                      <li key={`${f.index}-${f.item_name}`}>
+                        Row {f.index + 1}: {f.item_name} — {f.reason.replace(/_/g, " ")}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={submitting || validRows.length === 0}
+                onClick={() => void handleConfirm()}
+                className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {submitting ? "Submitting…" : `Confirm upload (${validRows.length} rows)`}
+              </button>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );
