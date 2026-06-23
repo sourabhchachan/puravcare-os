@@ -18,6 +18,9 @@ type PatientRow = {
   status: "active" | "discharged";
 };
 
+type SortId = "az" | "za" | "admission_new" | "admission_old";
+type StatusFilter = "all" | "active" | "discharged";
+
 function EmptyIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
@@ -39,7 +42,8 @@ function fmtDate(value: string) {
 export default function PatientsPage() {
   const { session } = useAuth();
   const toast = useToast();
-  const [status, setStatus] = useState<"active" | "discharged">("active");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sort, setSort] = useState<SortId>("az");
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<PatientRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,28 +54,54 @@ export default function PatientsPage() {
     setLoading(true);
     setError("");
     try {
-      const q = new URLSearchParams({ status, q: search.trim() });
-      const res = await fetch(`/api/patients?${q.toString()}`, { headers: { "x-actor-id": session.id } });
-      const body = (await res.json()) as { patients?: PatientRow[]; error?: string };
-      if (!res.ok) {
-        setError(body.error ?? "Could not load patients");
-        toast.error(body.error ?? "Could not load patients");
+      const q = search.trim();
+      const qParam = q ? `&q=${encodeURIComponent(q)}` : "";
+      const headers = { "x-actor-id": session.id };
+      const [activeRes, dischargedRes] = await Promise.all([
+        fetch(`/api/patients?status=active${qParam}`, { headers }),
+        fetch(`/api/patients?status=discharged${qParam}`, { headers }),
+      ]);
+      const [activeBody, dischargedBody] = await Promise.all([
+        activeRes.json() as Promise<{ patients?: PatientRow[]; error?: string }>,
+        dischargedRes.json() as Promise<{ patients?: PatientRow[]; error?: string }>,
+      ]);
+      if (!activeRes.ok || !dischargedRes.ok) {
+        const err = activeBody.error ?? dischargedBody.error ?? "Could not load patients";
+        setError(err);
+        toast.error(err);
         return;
       }
-      setRows(body.patients ?? []);
+      const merged = [...(activeBody.patients ?? []), ...(dischargedBody.patients ?? [])];
+      const byId = new Map<string, PatientRow>();
+      for (const p of merged) byId.set(p.id, p);
+      setRows([...byId.values()]);
     } catch {
       setError("Could not load patients");
       toast.error("Could not load patients");
     } finally {
       setLoading(false);
     }
-  }, [session, status, search, toast]);
+  }, [session, search, toast]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const filtered = useMemo(() => rows, [rows]);
+  const filtered = useMemo(() => {
+    let list =
+      statusFilter === "all"
+        ? [...rows]
+        : rows.filter((p) => p.status === statusFilter);
+    list = [...list].sort((a, b) => {
+      if (sort === "az") return a.full_name.localeCompare(b.full_name, undefined, { sensitivity: "base" });
+      if (sort === "za") return b.full_name.localeCompare(a.full_name, undefined, { sensitivity: "base" });
+      const aTs = new Date(a.admission_date).getTime();
+      const bTs = new Date(b.admission_date).getTime();
+      if (sort === "admission_new") return bTs - aTs;
+      return aTs - bTs;
+    });
+    return list;
+  }, [rows, statusFilter, sort]);
 
   if (!session) return null;
 
@@ -84,25 +114,47 @@ export default function PatientsPage() {
         </Link>
       </div>
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setStatus("active")}
-          className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-            status === "active" ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
-          }`}
-        >
-          Active
-        </button>
-        <button
-          type="button"
-          onClick={() => setStatus("discharged")}
-          className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-            status === "discharged" ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
-          }`}
-        >
-          Discharged
-        </button>
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: "all" as const, label: "All" },
+            { id: "active" as const, label: "Admitted only" },
+            { id: "discharged" as const, label: "Discharged only" },
+          ] as const
+        ).map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setStatusFilter(s.id)}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+              statusFilter === s.id ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: "az" as const, label: "A–Z" },
+            { id: "za" as const, label: "Z–A" },
+            { id: "admission_new" as const, label: "Newest admission" },
+            { id: "admission_old" as const, label: "Oldest admission" },
+          ] as const
+        ).map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setSort(s.id)}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+              sort === s.id ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
 
       <input
