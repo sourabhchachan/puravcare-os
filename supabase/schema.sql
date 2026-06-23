@@ -332,7 +332,7 @@ CREATE TABLE public.cashbook_members (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   cashbook_id uuid NOT NULL REFERENCES public.cashbooks (id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
-  role text CHECK (role IN ('primary_admin', 'admin', 'data_operator')),
+  role text CHECK (role IN ('primary_admin', 'admin', 'data_operator', 'viewer')),
   can_backdate text NOT NULL DEFAULT 'never' CHECK (can_backdate IN ('always', 'never', '1day')),
   can_edit_own boolean NOT NULL DEFAULT false,
   hide_balance boolean NOT NULL DEFAULT false,

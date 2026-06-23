@@ -52,6 +52,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!isCeo && !myMember) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
+  if (!isCeo && myMember?.role === "viewer") {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
 
   const canEditAny = isCeo;
   const isOwner = entry.created_by === actorId;

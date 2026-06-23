@@ -79,7 +79,7 @@ export async function GET(request: Request) {
 
 type MemberIn = {
   user_id: string;
-  role: "primary_admin" | "admin" | "data_operator";
+  role: "primary_admin" | "admin" | "data_operator" | "viewer";
   can_backdate?: "always" | "never" | "1day";
   can_edit_own?: boolean;
   hide_balance?: boolean;
@@ -149,7 +149,7 @@ export async function POST(request: Request) {
     if (!u) return NextResponse.json({ error: "invalid_member_user" }, { status: 400 });
 
     const role = m.role;
-    if (!["admin", "data_operator"].includes(role)) {
+    if (!["admin", "data_operator", "viewer"].includes(role)) {
       return NextResponse.json({ error: "invalid_member_role" }, { status: 400 });
     }
 
@@ -163,7 +163,7 @@ export async function POST(request: Request) {
       user_id: uid,
       role,
       can_backdate: canBackdate,
-      can_edit_own: role === "data_operator" ? Boolean(m.can_edit_own) : true,
+      can_edit_own: role === "data_operator" ? Boolean(m.can_edit_own) : role === "viewer" ? false : true,
       hide_balance: role === "data_operator" ? Boolean(m.hide_balance) : false,
       hide_others_entries: role === "data_operator" ? Boolean(m.hide_others_entries) : false,
     });

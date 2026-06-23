@@ -45,14 +45,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!uid) return NextResponse.json({ error: "missing_user" }, { status: 400 });
 
   const role = body.role;
-  if (!role || !["admin", "data_operator"].includes(role)) {
+  if (!role || !["admin", "data_operator", "viewer"].includes(role)) {
     return NextResponse.json({ error: "invalid_role" }, { status: 400 });
   }
 
   const { data: u } = await supabase.from("users").select("id").eq("id", uid).eq("is_active", true).maybeSingle();
   if (!u) return NextResponse.json({ error: "invalid_user" }, { status: 400 });
 
-  const canBackdate = role === "data_operator" ? body.can_backdate ?? "never" : "never";
+  const canBackdate =
+    role === "data_operator" ? body.can_backdate ?? "never" : "never";
   if (!["always", "never", "1day"].includes(canBackdate)) {
     return NextResponse.json({ error: "invalid_can_backdate" }, { status: 400 });
   }
@@ -62,7 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     user_id: uid,
     role,
     can_backdate: canBackdate,
-    can_edit_own: role === "data_operator" ? Boolean(body.can_edit_own) : true,
+    can_edit_own: role === "data_operator" ? Boolean(body.can_edit_own) : role === "viewer" ? false : true,
     hide_balance: role === "data_operator" ? Boolean(body.hide_balance) : false,
     hide_others_entries: role === "data_operator" ? Boolean(body.hide_others_entries) : false,
   });

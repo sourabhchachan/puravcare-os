@@ -53,6 +53,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!isCeo && !myMember) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
+  if (!isCeo && myMember?.role === "viewer") {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
 
   const { data: book } = await supabase.from("cashbooks").select("id, is_active").eq("id", cashbookId).maybeSingle();
   if (!book?.is_active) return NextResponse.json({ error: "not_found" }, { status: 404 });

@@ -170,6 +170,9 @@ export default function CashbookDetailPage() {
   }
 
   const bal = data.balance;
+  const isViewer = data.role === "viewer";
+  const canAddEntry = !isViewer;
+  const canEditEntries = !isViewer && (data.can_edit_any_entry || data.can_edit_own);
 
   return (
     <div className="space-y-4 pb-8">
@@ -219,20 +222,23 @@ export default function CashbookDetailPage() {
         ) : (
           <p className={`mt-1 text-3xl font-bold ${balanceClass(bal)}`}>{formatInr(bal)}</p>
         )}
-        <button
-          type="button"
-          onClick={() => setAddOpen(true)}
-          className="mt-4 w-full rounded-lg bg-[#2563EB] py-2.5 text-sm font-semibold text-white"
-        >
-          Add entry
-        </button>
+        {canAddEntry ? (
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="mt-4 w-full rounded-lg bg-[#2563EB] py-2.5 text-sm font-semibold text-white"
+          >
+            Add entry
+          </button>
+        ) : null}
       </div>
 
       <div>
         <h2 className="mb-2 text-sm font-semibold text-slate-800">Entries</h2>
         <ul className="space-y-2">
           {data.entries.map((e) => {
-            const canEdit = data.can_edit_any_entry || (data.can_edit_own && e.created_by === session.id);
+            const canEdit =
+              canEditEntries && (data.can_edit_any_entry || (data.can_edit_own && e.created_by === session.id));
             return (
               <li key={e.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
                 <div className="flex justify-between gap-2">
@@ -781,7 +787,7 @@ function MembersSheet({
 }) {
   const toast = useToast();
   const [userId, setUserId] = useState("");
-  const [role, setRole] = useState<"admin" | "data_operator">("admin");
+  const [role, setRole] = useState<"admin" | "data_operator" | "viewer">("admin");
   const [canBackdate, setCanBackdate] = useState<"always" | "never" | "1day">("never");
   const [canEditOwn, setCanEditOwn] = useState(false);
   const [hideBal, setHideBal] = useState(false);
@@ -861,6 +867,7 @@ function MembersSheet({
           <select value={role} onChange={(e) => setRole(e.target.value as typeof role)} className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm">
             <option value="admin">Admin</option>
             <option value="data_operator">Data operator</option>
+            <option value="viewer">Viewer</option>
           </select>
           {role === "data_operator" ? (
             <div className="space-y-2 text-xs">

@@ -49,11 +49,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   const role = isCeo ? "ceo" : (myMember!.role as string);
-  const hideOthers = !isCeo && role === "data_operator" && Boolean(myMember!.hide_others_entries);
-  const hideBal = !isCeo && role === "data_operator" && Boolean(myMember!.hide_balance);
+  const isViewer = !isCeo && role === "viewer";
+  const hideOthers = isViewer
+    ? false
+    : !isCeo && role === "data_operator" && Boolean(myMember!.hide_others_entries);
+  const hideBal = isViewer ? false : !isCeo && role === "data_operator" && Boolean(myMember!.hide_balance);
 
   const canManageMembers = isCeo || role === "primary_admin";
-  const canEditAnyEntry = isCeo;
+  const canEditAnyEntry = isCeo && !isViewer;
 
   let entriesQuery = supabase
     .from("cash_entries")
@@ -146,8 +149,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     can_edit_any_entry: canEditAnyEntry,
     hide_others_entries: hideOthers,
     hide_balance: hideBal,
-    can_backdate: isCeo ? "always" : (myMember?.can_backdate as string) ?? "never",
-    can_edit_own: isCeo ? true : Boolean(myMember?.can_edit_own),
+    can_backdate: isCeo ? "always" : isViewer ? "never" : (myMember?.can_backdate as string) ?? "never",
+    can_edit_own: isCeo ? true : isViewer ? false : Boolean(myMember?.can_edit_own),
     entries,
     members,
     directory_users,
