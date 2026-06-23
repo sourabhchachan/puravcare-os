@@ -15,6 +15,8 @@ type ItemRow = {
   vendor_name: string | null;
   is_patient_linked: boolean;
   is_active: boolean;
+  track_inventory?: boolean;
+  min_stock_threshold?: number | null;
   created_at?: string;
 };
 
@@ -205,6 +207,7 @@ export default function ItemMasterPage() {
       {sheet ? (
         <ItemSheet
           sessionId={session.id}
+          isCeo={session.role === "ceo"}
           vendors={vendors}
           initial={sheet === "new" ? null : sheet}
           onClose={() => setSheet(null)}
@@ -221,12 +224,14 @@ export default function ItemMasterPage() {
 
 function ItemSheet({
   sessionId,
+  isCeo,
   vendors,
   initial,
   onClose,
   onSaved,
 }: {
   sessionId: string;
+  isCeo: boolean;
   vendors: Vendor[];
   initial: ItemRow | null;
   onClose: () => void;
@@ -238,6 +243,10 @@ function ItemSheet({
   const [vendorId, setVendorId] = useState(initial?.vendor_id ?? "");
   const [patientLinked, setPatientLinked] = useState(initial?.is_patient_linked ?? false);
   const [active, setActive] = useState(initial?.is_active ?? true);
+  const [trackInventory, setTrackInventory] = useState(initial?.track_inventory === true);
+  const [minStockThreshold, setMinStockThreshold] = useState(
+    initial?.min_stock_threshold != null ? String(initial.min_stock_threshold) : "",
+  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -263,13 +272,28 @@ function ItemSheet({
 
     setSaving(true);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         name: name.trim(),
         price: priceNum,
         vendor_id: vendorId,
         is_patient_linked: patientLinked,
         is_active: active,
+        track_inventory: trackInventory,
       };
+      if (isCeo) {
+        if (trackInventory && minStockThreshold.trim() !== "") {
+          const threshold = Number(minStockThreshold);
+          if (Number.isNaN(threshold) || threshold < 0) {
+            setError("Enter a valid min stock threshold.");
+            toast.error("Enter a valid min stock threshold.");
+            setSaving(false);
+            return;
+          }
+          body.min_stock_threshold = threshold;
+        } else {
+          body.min_stock_threshold = null;
+        }
+      }
 
       const isNew = !initial;
       const res = isNew
@@ -349,6 +373,28 @@ function ItemSheet({
               ))}
             </select>
           </div>
+          <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
+            <span>Track inventory</span>
+            <input
+              type="checkbox"
+              checked={trackInventory}
+              onChange={(e) => setTrackInventory(e.target.checked)}
+            />
+          </label>
+          {trackInventory && isCeo ? (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Min stock threshold</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={minStockThreshold}
+                onChange={(e) => setMinStockThreshold(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              />
+            </div>
+          ) : null}
           <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
             <span>Patient linked (requires patient to bill)</span>
             <input type="checkbox" checked={patientLinked} onChange={(e) => setPatientLinked(e.target.checked)} />

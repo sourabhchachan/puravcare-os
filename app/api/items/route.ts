@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
   const supabase = createServiceClient();
   const [{ data: items, error: itemsError }, { data: vendors }] = await Promise.all([
-    supabase.from("items").select("id, name, price, vendor_id, is_patient_linked, is_active, created_at").order("name"),
+    supabase.from("items").select("id, name, price, vendor_id, is_patient_linked, is_active, track_inventory, min_stock_threshold, created_at").order("name"),
     supabase.from("vendors").select("id, name").eq("is_active", true).order("name"),
   ]);
 
@@ -39,6 +39,8 @@ type PostBody = {
   vendor_id?: string | null;
   is_patient_linked?: boolean;
   is_active?: boolean;
+  track_inventory?: boolean;
+  min_stock_threshold?: number | null;
 };
 
 export async function POST(request: Request) {
@@ -65,10 +67,21 @@ export async function POST(request: Request) {
   if (!vendorId) return NextResponse.json({ error: "missing_vendor" }, { status: 400 });
 
   const supabase = createServiceClient();
+  const isCeo = await assertCeo(actorId!);
 
   {
     const { data: v } = await supabase.from("vendors").select("id").eq("id", vendorId).maybeSingle();
     if (!v) return NextResponse.json({ error: "invalid_vendor" }, { status: 400 });
+  }
+
+  const trackInventory = Boolean(body.track_inventory);
+  let minStockThreshold: number | null = null;
+  if (trackInventory && isCeo && body.min_stock_threshold !== undefined && body.min_stock_threshold !== null) {
+    const n = Number(body.min_stock_threshold);
+    if (Number.isNaN(n) || n < 0) {
+      return NextResponse.json({ error: "invalid_min_stock_threshold" }, { status: 400 });
+    }
+    minStockThreshold = n;
   }
 
   const { data, error } = await supabase
@@ -79,6 +92,8 @@ export async function POST(request: Request) {
       vendor_id: vendorId,
       is_patient_linked: Boolean(body.is_patient_linked),
       is_active: body.is_active !== false,
+      track_inventory: trackInventory,
+      min_stock_threshold: minStockThreshold,
       created_by: actorId!,
     })
     .select("*")

@@ -16,6 +16,8 @@ type PatchBody = {
   vendor_id?: string | null;
   is_patient_linked?: boolean;
   is_active?: boolean;
+  track_inventory?: boolean;
+  min_stock_threshold?: number | null;
 };
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -32,6 +34,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
+  const isCeo = await assertCeo(actorId!);
+
   const updates: Record<string, unknown> = {};
   if (typeof body.name === "string") updates.name = body.name.trim();
   if (body.price !== undefined && body.price !== null) {
@@ -46,6 +50,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
   if (typeof body.is_patient_linked === "boolean") updates.is_patient_linked = body.is_patient_linked;
   if (typeof body.is_active === "boolean") updates.is_active = body.is_active;
+  if (typeof body.track_inventory === "boolean") {
+    updates.track_inventory = body.track_inventory;
+    if (!body.track_inventory) updates.min_stock_threshold = null;
+  }
+  if (isCeo && "min_stock_threshold" in body) {
+    if (body.min_stock_threshold === null) {
+      updates.min_stock_threshold = null;
+    } else if (body.min_stock_threshold !== undefined) {
+      const n = Number(body.min_stock_threshold);
+      if (Number.isNaN(n) || n < 0) {
+        return NextResponse.json({ error: "invalid_min_stock_threshold" }, { status: 400 });
+      }
+      updates.min_stock_threshold = n;
+    }
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "no_updates" }, { status: 400 });
