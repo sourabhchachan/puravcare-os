@@ -118,6 +118,130 @@ function ChevronRight({ className }: { className?: string }) {
   );
 }
 
+function IconCalendar({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function formatShortDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return iso;
+  }
+}
+
+type LowStockItem = {
+  item_id: string;
+  item_name: string;
+  current_stock: number;
+  min_stock_threshold: number | null;
+};
+
+type ExpiryRow = {
+  id: string;
+  item_name: string;
+  batch_number: string;
+  expiry_date: string;
+  quantity: number;
+};
+
+function LowStockAlertWidget({ items }: { items: LowStockItem[] }) {
+  if (!items.length) return null;
+  return (
+    <Link
+      href="/dashboard/inventory"
+      className="block rounded-2xl bg-white px-5 py-4 shadow-md transition hover:-translate-y-0.5"
+    >
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-500 to-red-700">
+          <IconAlert className="h-6 w-6 text-white" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-gray-900">Low Stock</p>
+            <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+              {items.length}
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-gray-500">Items below minimum threshold</p>
+        </div>
+        <ChevronRight className="h-5 w-5 shrink-0 text-gray-300" />
+      </div>
+      <ul className="mt-4 space-y-2 border-t border-gray-100 pt-3">
+        {items.map((item) => (
+          <li key={item.item_id} className="flex items-start justify-between gap-2 text-sm">
+            <span className="min-w-0 font-medium text-gray-900">{item.item_name}</span>
+            <span className="shrink-0 text-right text-xs text-gray-600">
+              <span className="font-semibold text-red-600">{item.current_stock}</span>
+              <span className="text-gray-400"> / </span>
+              {item.min_stock_threshold ?? "—"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Link>
+  );
+}
+
+function ExpiryAlertWidget({ rows }: { rows: ExpiryRow[] }) {
+  if (!rows.length) return null;
+  return (
+    <Link
+      href="/dashboard/inventory"
+      className="block rounded-2xl bg-white px-5 py-4 shadow-md transition hover:-translate-y-0.5"
+    >
+      <div className="flex items-center gap-3">
+        <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600">
+          <IconCalendar className="h-6 w-6 text-white" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-gray-900">Expiry Alert</p>
+            <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+              {rows.length}
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-gray-500">Expiring within 30 days</p>
+        </div>
+        <ChevronRight className="h-5 w-5 shrink-0 text-gray-300" />
+      </div>
+      <ul className="mt-4 space-y-2 border-t border-gray-100 pt-3">
+        {rows.map((row) => (
+          <li key={row.id} className="text-sm">
+            <div className="flex items-start justify-between gap-2">
+              <span className="min-w-0 font-medium text-gray-900">{row.item_name}</span>
+              <span className="shrink-0 text-xs font-semibold text-orange-600">Qty {row.quantity}</span>
+            </div>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Batch {row.batch_number} · Expires {formatShortDate(row.expiry_date)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </Link>
+  );
+}
+
+function InventoryAlertWidgets({
+  lowStock,
+  expiry,
+}: {
+  lowStock: LowStockItem[];
+  expiry: ExpiryRow[];
+}) {
+  if (!lowStock.length && !expiry.length) return null;
+  return (
+    <div className="space-y-3">
+      <LowStockAlertWidget items={lowStock} />
+      <ExpiryAlertWidget rows={expiry} />
+    </div>
+  );
+}
+
 function PulseCard({
   href,
   icon,
@@ -173,6 +297,8 @@ export default function DashboardHomePage() {
   const [pulse, setPulse] = useState<Pulse | null>(null);
   const [home, setHome] = useState<HomeMetrics | null>(null);
   const [vendorStats, setVendorStats] = useState<VendorStats | null>(null);
+  const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
+  const [expiryRows, setExpiryRows] = useState<ExpiryRow[]>([]);
 
   const title = useMemo(() => {
     if (!session) return "Welcome";
@@ -243,9 +369,36 @@ export default function DashboardHomePage() {
     }
   }, [session, toast]);
 
+  const loadInventoryAlerts = useCallback(async () => {
+    if (!session) return;
+    if (session.role !== "ceo" && session.role !== "ops" && session.role !== "vendor") {
+      setLowStockItems([]);
+      setExpiryRows([]);
+      return;
+    }
+    try {
+      const headers = { "x-actor-id": session.id };
+      const [lowRes, expRes] = await Promise.all([
+        fetch("/api/inventory/low-stock", { headers }),
+        fetch("/api/inventory/expiry", { headers }),
+      ]);
+      const lowData = (await lowRes.json()) as { items?: LowStockItem[] };
+      const expData = (await expRes.json()) as { rows?: ExpiryRow[] };
+      if (lowRes.ok) setLowStockItems(lowData.items ?? []);
+      if (expRes.ok) setExpiryRows(expData.rows ?? []);
+    } catch {
+      setLowStockItems([]);
+      setExpiryRows([]);
+    }
+  }, [session]);
+
   useEffect(() => {
     void loadPulse();
   }, [loadPulse]);
+
+  useEffect(() => {
+    void loadInventoryAlerts();
+  }, [loadInventoryAlerts]);
 
   useEffect(() => {
     if (!session) return;
@@ -311,6 +464,8 @@ export default function DashboardHomePage() {
           />
         </div>
 
+        <InventoryAlertWidgets lowStock={lowStockItems} expiry={expiryRows} />
+
         <div className="grid grid-cols-2 gap-3 pt-1">
           <Link
             href="/dashboard/tasks/new"
@@ -371,6 +526,8 @@ export default function DashboardHomePage() {
             value={h ? (h.my_cashbooks ?? 0) : "—"}
           />
         </div>
+
+        <InventoryAlertWidgets lowStock={lowStockItems} expiry={expiryRows} />
       </div>
     );
   }
@@ -444,6 +601,9 @@ export default function DashboardHomePage() {
             value={v ? v.delivered : "—"}
           />
         </div>
+
+        <InventoryAlertWidgets lowStock={lowStockItems} expiry={expiryRows} />
+
         <Link
           href="/dashboard/pending"
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-600"
