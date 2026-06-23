@@ -134,7 +134,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto scroll-smooth px-4 pt-4 pb-24 max-[430px]:pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
+        <main className="flex-1 overflow-y-auto scroll-smooth px-4 pt-4 pb-40 max-[430px]:pb-[calc(10rem+env(safe-area-inset-bottom,0px))]">
           {children}
         </main>
 
