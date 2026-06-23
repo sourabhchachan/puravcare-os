@@ -46,6 +46,7 @@ export default function VendorDetailPage() {
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
 
   const isCeo = session?.role === "ceo";
+  console.log("[vendor detail] session.role:", session?.role, "isCeo:", isCeo);
   const isCeoOrOps = session?.role === "ceo" || session?.role === "ops";
 
   const load = useCallback(async () => {
@@ -81,6 +82,7 @@ export default function VendorDetailPage() {
   }, [session, id, toast]);
 
   useEffect(() => {
+    console.log("[vendor detail] fetch users effect - isCeo:", isCeo, "session:", session?.id);
     if (!session || !isCeo) return;
     let cancelled = false;
     (async () => {
