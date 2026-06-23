@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { NotificationBell } from "@/components/dashboard/NotificationBell";
 import { ToastProvider } from "@/components/ui/ToastProvider";
@@ -60,8 +60,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     enforcePasswordChange: true,
   });
   const [profileOpen, setProfileOpen] = useState(false);
+  const [isMrdMember, setIsMrdMember] = useState(false);
 
-  const tabs = useMemo(() => (session ? getDashboardTabs(session.role) : []), [session]);
+  useEffect(() => {
+    if (!session) {
+      setIsMrdMember(false);
+      return;
+    }
+    if (session.role === "ceo") {
+      setIsMrdMember(true);
+      return;
+    }
+    let cancelled = false;
+    void fetch("/api/mrd/access", { headers: { "x-actor-id": session.id } })
+      .then((r) => r.json())
+      .then((d: { is_mrd_member?: boolean }) => {
+        if (!cancelled) setIsMrdMember(Boolean(d.is_mrd_member));
+      })
+      .catch(() => {
+        if (!cancelled) setIsMrdMember(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
+  const tabs = useMemo(
+    () => (session ? getDashboardTabs(session.role, { isMrdMember }) : []),
+    [session, isMrdMember],
+  );
 
   if (loading || !session) {
     return (

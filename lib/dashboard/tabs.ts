@@ -10,6 +10,7 @@ import {
   IconInventory,
   IconInvoice,
   IconLinen,
+  IconMRD,
   IconNotice,
   IconPending,
   IconPatients,
@@ -25,10 +26,11 @@ export type DashboardTab = {
   icon: ComponentType<{ className?: string }>;
 };
 
-export function getDashboardTabs(role: UserRole): DashboardTab[] {
+export function getDashboardTabs(role: UserRole, options?: { isMrdMember?: boolean }): DashboardTab[] {
+  let tabs: DashboardTab[];
   switch (role) {
     case "ceo":
-      return [
+      tabs = [
         { href: "/dashboard", label: "Pulse", icon: IconPulse },
         { href: "/dashboard/patients", label: "Patients", icon: IconPatients },
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
@@ -40,8 +42,9 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/inventory", label: "Inventory", icon: IconInventory },
         { href: "/dashboard/linen", label: "Linen", icon: IconLinen },
       ];
+      break;
     case "ops":
-      return [
+      tabs = [
         { href: "/dashboard", label: "Home", icon: IconHome },
         { href: "/dashboard/patients", label: "Patients", icon: IconPatients },
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
@@ -53,16 +56,18 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/inventory", label: "Inventory", icon: IconInventory },
         { href: "/dashboard/linen", label: "Linen", icon: IconLinen },
       ];
+      break;
     case "staff":
-      return [
+      tabs = [
         { href: "/dashboard", label: "Home", icon: IconHome },
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
         { href: "/dashboard/cashbook", label: "Cashbook", icon: IconCashbook },
         { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
         { href: "/dashboard/indents", label: "Indent", icon: IconIndent },
       ];
+      break;
     case "vendor":
-      return [
+      tabs = [
         { href: "/dashboard", label: "Home", icon: IconHome },
         { href: "/dashboard/notices", label: "Notices", icon: IconNotice },
         { href: "/dashboard/tasks", label: "Tasks", icon: IconTasks },
@@ -72,9 +77,16 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/inventory", label: "Inventory", icon: IconInventory },
         { href: "/dashboard/linen", label: "Linen", icon: IconLinen },
       ];
+      break;
     default:
-      return [];
+      tabs = [];
   }
+
+  if (role === "ceo" || options?.isMrdMember) {
+    tabs = [...tabs, { href: "/dashboard/mrd", label: "MRD", icon: IconMRD }];
+  }
+
+  return tabs;
 }
 
 export function isTabActive(pathname: string, href: string) {

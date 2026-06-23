@@ -954,6 +954,81 @@ ALTER TABLE public.indents ADD COLUMN IF NOT EXISTS patient_id uuid REFERENCES p
 ALTER TABLE public.indents ADD COLUMN IF NOT EXISTS location_id uuid REFERENCES public.locations (id);
 ALTER TABLE public.indents ADD COLUMN IF NOT EXISTS item_id uuid REFERENCES public.items (id);
 
+-- --------------------------------------------------------------------------
+-- MRD (Medical Records Department)
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.mrd_members (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE REFERENCES public.users (id) ON DELETE CASCADE,
+  created_by uuid REFERENCES public.users (id),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.mrd_files (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  ipd_number text NOT NULL,
+  patient_id uuid REFERENCES public.patients (id) ON DELETE SET NULL,
+  status text NOT NULL DEFAULT 'in_mrd' CHECK (status IN ('in_mrd', 'with_insurance', 'with_staff', 'missing')),
+  added_manually boolean NOT NULL DEFAULT false,
+  created_by uuid REFERENCES public.users (id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS mrd_files_ipd_number_uidx ON public.mrd_files (ipd_number);
+
+CREATE TABLE IF NOT EXISTS public.mrd_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  file_id uuid NOT NULL REFERENCES public.mrd_files (id) ON DELETE CASCADE,
+  request_type text NOT NULL DEFAULT 'borrow' CHECK (request_type IN ('borrow', 'return')),
+  purpose text NOT NULL,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dispatched', 'received', 'returned', 'cancelled')),
+  requested_by uuid NOT NULL REFERENCES public.users (id),
+  dispatched_by uuid REFERENCES public.users (id),
+  dispatched_at timestamptz,
+  received_at timestamptz,
+  returned_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.mrd_requests ADD COLUMN IF NOT EXISTS request_type text NOT NULL DEFAULT 'borrow';
+ALTER TABLE public.mrd_requests ADD COLUMN IF NOT EXISTS received_at timestamptz;
+
+CREATE TABLE IF NOT EXISTS public.mrd_transactions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  file_id uuid NOT NULL REFERENCES public.mrd_files (id) ON DELETE CASCADE,
+  action text NOT NULL,
+  from_status text,
+  to_status text,
+  request_id uuid REFERENCES public.mrd_requests (id) ON DELETE SET NULL,
+  actor_id uuid REFERENCES public.users (id),
+  note text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS mrd_files_status_idx ON public.mrd_files (status);
+CREATE INDEX IF NOT EXISTS mrd_requests_file_id_idx ON public.mrd_requests (file_id);
+CREATE INDEX IF NOT EXISTS mrd_requests_status_idx ON public.mrd_requests (status);
+CREATE INDEX IF NOT EXISTS mrd_transactions_file_id_idx ON public.mrd_transactions (file_id);
+
+ALTER TABLE public.mrd_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mrd_files ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mrd_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mrd_transactions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.mrd_members;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.mrd_members FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.mrd_files;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.mrd_files FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.mrd_requests;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.mrd_requests FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.mrd_transactions;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.mrd_transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
 -- ============================================================================
 -- Done — schema ready for Phase 3 (role-specific RLS tightening)
 -- ============================================================================

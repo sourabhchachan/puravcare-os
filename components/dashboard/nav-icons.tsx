@@ -135,3 +135,13 @@ export function IconLinen({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconMRD({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 4h7l3 3h6v13H4V4z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M11 4v3h3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 13h8M8 17h5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

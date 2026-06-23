@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
+import { notifyMrdMembers } from "@/lib/mrd/notify";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type PatchBody = {
@@ -145,7 +146,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const { data: patient } = await supabase.from("patients").select("id, status").eq("id", id).maybeSingle();
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("id, status, ipd_number, full_name")
+    .eq("id", id)
+    .maybeSingle();
   if (!patient) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   let error: { message?: string } | null = null;
@@ -156,6 +161,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .update({ status: "discharged", discharge_date: new Date().toISOString() })
       .eq("id", id);
     error = updateErr;
+
+    if (!error && patient.ipd_number) {
+      const { data: existingFile } = await supabase
+        .from("mrd_files")
+        .select("id")
+        .eq("ipd_number", patient.ipd_number)
+        .maybeSingle();
+
+      if (!existingFile) {
+        await supabase.from("mrd_files").insert({
+          ipd_number: patient.ipd_number,
+          patient_id: patient.id,
+          status: "missing",
+          created_by: actorId,
+        });
+
+        await notifyMrdMembers(
+          supabase,
+          `New file received: IPD-${patient.ipd_number} — ${patient.full_name}`,
+          null,
+        );
+      }
+    }
   } else {
     if (patient.status !== "discharged") return NextResponse.json({ error: "not_discharged" }, { status: 400 });
     const { error: updateErr } = await supabase
