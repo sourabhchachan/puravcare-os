@@ -20,6 +20,8 @@ type UserRow = {
   permissions: Permissions | null;
 };
 
+type UserSort = "az" | "za";
+
 export default function UsersManagementPage() {
   const { session, loading: authLoading } = useAuth();
   const toast = useToast();
@@ -27,6 +29,7 @@ export default function UsersManagementPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<UserSort>("az");
   const [addOpen, setAddOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserRow | null>(null);
 
@@ -57,14 +60,21 @@ export default function UsersManagementPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(
-      (u) =>
-        u.full_name.toLowerCase().includes(q) ||
-        u.staff_id.toLowerCase().includes(q) ||
-        u.login_id.includes(q),
+    let list = q
+      ? users.filter(
+          (u) =>
+            u.full_name.toLowerCase().includes(q) ||
+            u.staff_id.toLowerCase().includes(q) ||
+            u.login_id.includes(q),
+        )
+      : [...users];
+    list = [...list].sort((a, b) =>
+      sort === "az"
+        ? a.full_name.localeCompare(b.full_name, undefined, { sensitivity: "base" })
+        : b.full_name.localeCompare(a.full_name, undefined, { sensitivity: "base" }),
     );
-  }, [users, search]);
+    return list;
+  }, [users, search, sort]);
 
   if (authLoading || !session) {
     return <p className="text-sm text-slate-500">Loading…</p>;
@@ -101,6 +111,26 @@ export default function UsersManagementPage() {
         placeholder="Search by name or staff ID…"
         className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none ring-[#2563EB] focus:ring-2"
       />
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: "az" as const, label: "A–Z" },
+            { id: "za" as const, label: "Z–A" },
+          ] as const
+        ).map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setSort(s.id)}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+              sort === s.id ? "bg-[#2563EB] text-white" : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
