@@ -134,7 +134,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto scroll-smooth px-4 pb-24 pt-4">{children}</main>
+        <main className="flex-1 overflow-y-auto scroll-smooth px-4 pt-4 pb-24 max-[430px]:pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
+          {children}
+        </main>
 
         <nav
           className={`fixed bottom-0 left-1/2 z-40 grid w-full max-w-[430px] -translate-x-1/2 border-t border-[#E5E7EB] bg-white ${gridColsClass(tabs.length)}`}
