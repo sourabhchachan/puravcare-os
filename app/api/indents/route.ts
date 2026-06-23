@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { isLinenItem } from "@/lib/linen/access";
-import { getVendorForUser } from "@/lib/api/vendorAccess";
+import { canViewVendor, getVendorIdsForUser } from "@/lib/api/vendorAccess";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type PostBody = {
@@ -31,11 +31,11 @@ export async function GET(request: Request) {
 
   let query = supabase.from("indents").select("*").order("created_at", { ascending: false });
   if (role === "vendor") {
-    const vendor = await getVendorForUser(actorId!);
-    if (!vendor) {
+    const vendorIds = await getVendorIdsForUser(actorId!);
+    if (!vendorIds.length) {
       return NextResponse.json({ indents: [], items: [] });
     }
-    query = query.eq("vendor_id", (vendor as { id: string }).id);
+    query = query.in("vendor_id", vendorIds);
   } else if (role !== "ceo" && role !== "ops") {
     query = query.eq("created_by", actorId!);
   }
@@ -252,8 +252,7 @@ export async function PATCH(request: Request) {
     if (!["pending", "dispatched"].includes(indent.status as string)) {
       return NextResponse.json({ error: "invalid_state" }, { status: 400 });
     }
-    const vendor = await getVendorForUser(actorId!);
-    if (!vendor || (vendor as { id: string }).id !== (indent.vendor_id as string)) {
+    if (!(await canViewVendor(actorId!, indent.vendor_id as string))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
     const reason = (body.block_reason ?? "").trim();

@@ -54,7 +54,7 @@ export async function getItemCurrentStock(supabase: Supabase, itemId: string): P
 
 export async function fetchStockLevels(
   supabase: Supabase,
-  options?: { vendorId?: string },
+  options?: { vendorId?: string; vendorIds?: string[] },
 ): Promise<StockLevelRow[]> {
   let itemsQuery = supabase
     .from("items")
@@ -62,7 +62,9 @@ export async function fetchStockLevels(
     .eq("track_inventory", true)
     .eq("is_active", true);
 
-  if (options?.vendorId) {
+  if (options?.vendorIds?.length) {
+    itemsQuery = itemsQuery.in("vendor_id", options.vendorIds);
+  } else if (options?.vendorId) {
     itemsQuery = itemsQuery.eq("vendor_id", options.vendorId);
   }
 

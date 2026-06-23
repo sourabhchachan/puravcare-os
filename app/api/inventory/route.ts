@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { assertCeoOrOps } from "@/lib/api/ceoOrOps";
 import { fetchStockLevels } from "@/lib/inventory/stockLevels";
-import { getVendorForUser } from "@/lib/api/vendorAccess";
+import { canViewVendor, getVendorIdsForUser } from "@/lib/api/vendorAccess";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type PostBody = {
@@ -26,9 +26,9 @@ export async function GET(request: Request) {
 
   try {
     if (role === "vendor") {
-      const vendor = await getVendorForUser(actorId!);
-      if (!vendor) return NextResponse.json({ items: [] });
-      const levels = await fetchStockLevels(supabase, { vendorId: (vendor as { id: string }).id });
+      const vendorIds = await getVendorIdsForUser(actorId!);
+      if (!vendorIds.length) return NextResponse.json({ items: [] });
+      const levels = await fetchStockLevels(supabase, { vendorIds });
       return NextResponse.json({ items: levels });
     }
     if (!(await assertCeoOrOps(actorId))) {
@@ -50,8 +50,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const vendor = await getVendorForUser(actorId!);
-  if (!vendor) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const vendorIds = await getVendorIdsForUser(actorId!);
+  if (!vendorIds.length) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   let body: PostBody;
   try {
@@ -81,7 +81,6 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceClient();
-  const vendorId = (vendor as { id: string }).id;
 
   const { data: item, error: itemErr } = await supabase
     .from("items")
@@ -91,7 +90,9 @@ export async function POST(request: Request) {
 
   if (itemErr) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
   if (!item || !item.is_active) return NextResponse.json({ error: "invalid_item" }, { status: 400 });
-  if (item.vendor_id !== vendorId) return NextResponse.json({ error: "item_not_for_vendor" }, { status: 403 });
+  if (!item.vendor_id || !(await canViewVendor(actorId!, item.vendor_id as string))) {
+    return NextResponse.json({ error: "item_not_for_vendor" }, { status: 403 });
+  }
   if (!item.track_inventory) return NextResponse.json({ error: "inventory_not_tracked" }, { status: 400 });
 
   const { data: stockRow, error: stockErr } = await supabase

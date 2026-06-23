@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { assertCeoOrOps } from "@/lib/api/ceoOrOps";
-import { getVendorForUser } from "@/lib/api/vendorAccess";
+import { canViewVendor } from "@/lib/api/vendorAccess";
 import { createServiceClient } from "@/lib/supabase/service";
 
 function userNameFromJoin(users: unknown): string {
@@ -20,8 +20,7 @@ async function canViewItemHistory(actorId: string, itemId: string) {
 
   if (role === "ceo" || role === "ops") return { ok: true as const, item };
   if (role === "vendor") {
-    const vendor = await getVendorForUser(actorId);
-    if (!vendor || (vendor as { id: string }).id !== item.vendor_id) {
+    if (!(await canViewVendor(actorId, item.vendor_id as string))) {
       return { ok: false as const, item: null };
     }
     return { ok: true as const, item };

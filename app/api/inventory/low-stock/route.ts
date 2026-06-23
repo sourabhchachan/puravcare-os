@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { assertCeoOrOps } from "@/lib/api/ceoOrOps";
 import { fetchStockLevels } from "@/lib/inventory/stockLevels";
-import { getVendorForUser } from "@/lib/api/vendorAccess";
+import { getVendorIdsForUser } from "@/lib/api/vendorAccess";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export async function GET(request: Request) {
@@ -15,17 +15,17 @@ export async function GET(request: Request) {
   const role = await getUserRole(actorId);
   const supabase = createServiceClient();
 
-  let vendorId: string | undefined;
+  let vendorIds: string[] | undefined;
   if (role === "vendor") {
-    const vendor = await getVendorForUser(actorId!);
-    if (!vendor) return NextResponse.json({ items: [] });
-    vendorId = (vendor as { id: string }).id;
+    const ids = await getVendorIdsForUser(actorId!);
+    if (!ids.length) return NextResponse.json({ items: [] });
+    vendorIds = ids;
   } else if (!(await assertCeoOrOps(actorId))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   try {
-    const levels = await fetchStockLevels(supabase, vendorId ? { vendorId } : undefined);
+    const levels = await fetchStockLevels(supabase, vendorIds ? { vendorIds } : undefined);
     const low = levels.filter((r) => r.is_low_stock);
     return NextResponse.json({ items: low });
   } catch {

@@ -81,8 +81,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!["pending", "dispatched"].includes(row.status as string)) {
       return NextResponse.json({ error: "invalid_state" }, { status: 400 });
     }
-    const { data: link } = await supabase.from("vendor_users").select("vendor_id").eq("user_id", actorId!).maybeSingle();
-    if (!link || link.vendor_id !== vendorId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    if (!(await canViewVendor(actorId!, vendorId))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
     const reason = (body.reason ?? "").trim();
     if (!reason) return NextResponse.json({ error: "missing_reason" }, { status: 400 });
 
@@ -284,8 +285,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "cannot_dispatch_own_indent" }, { status: 403 });
     }
     if (role === "vendor") {
-      const { data: link } = await supabase.from("vendor_users").select("vendor_id").eq("user_id", actorId!).maybeSingle();
-      if (!link || link.vendor_id !== vendorId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      if (!(await canViewVendor(actorId!, vendorId))) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
     } else if (!(await assertCeoOrOps(actorId))) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }

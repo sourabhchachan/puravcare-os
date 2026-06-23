@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { assertCeoOrOps } from "@/lib/api/ceoOrOps";
 import { expiryWindowIso } from "@/lib/inventory/stockLevels";
-import { getVendorForUser } from "@/lib/api/vendorAccess";
+import { getVendorIdsForUser } from "@/lib/api/vendorAccess";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export async function GET(request: Request) {
@@ -15,11 +15,11 @@ export async function GET(request: Request) {
   const role = await getUserRole(actorId);
   const supabase = createServiceClient();
 
-  let vendorId: string | null = null;
+  let vendorIds: string[] | null = null;
   if (role === "vendor") {
-    const vendor = await getVendorForUser(actorId!);
-    if (!vendor) return NextResponse.json({ rows: [] });
-    vendorId = (vendor as { id: string }).id;
+    const ids = await getVendorIdsForUser(actorId!);
+    if (!ids.length) return NextResponse.json({ rows: [] });
+    vendorIds = ids;
   } else if (!(await assertCeoOrOps(actorId))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
@@ -38,10 +38,10 @@ export async function GET(request: Request) {
 
   const rows = (stockRows ?? [])
     .filter((r) => {
-      if (!vendorId) return true;
+      if (!vendorIds) return true;
       const rel = r.items as { vendor_id: string } | { vendor_id: string }[] | null;
       const item = Array.isArray(rel) ? rel[0] : rel;
-      return item?.vendor_id === vendorId;
+      return item?.vendor_id != null && vendorIds.includes(item.vendor_id);
     })
     .map((r) => {
       const rel = r.items as { name: string; vendor_id: string } | { name: string; vendor_id: string }[] | null;

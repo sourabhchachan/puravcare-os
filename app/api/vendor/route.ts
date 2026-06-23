@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
-import { getVendorForUser } from "@/lib/api/vendorAccess";
+import { getVendorsForUser } from "@/lib/api/vendorAccess";
 
-/** Linked vendor record for the logged-in vendor user (portal). */
+/** Linked vendor records for the logged-in vendor user (portal). */
 export async function GET(request: Request) {
   const actorId = getActorId(request);
   if (!(await assertActiveUser(actorId))) {
@@ -13,7 +13,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const vendor = await getVendorForUser(actorId!);
-  if (!vendor) return NextResponse.json({ vendor: null }, { status: 200 });
-  return NextResponse.json({ vendor });
+  const vendors = await getVendorsForUser(actorId!);
+  return NextResponse.json({
+    vendors,
+    vendor: vendors[0] ?? null,
+  });
 }

@@ -12,6 +12,7 @@ type Indent = {
   unit: string | null;
   status: string;
   created_at: string;
+  vendor_name?: string;
 };
 
 function indentBadge(status: string) {
@@ -33,7 +34,7 @@ function formatDt(iso: string) {
 export default function VendorPendingPage() {
   const { session, loading } = useAuth();
   const toast = useToast();
-  const [vendorId, setVendorId] = useState<string | null>(null);
+  const [vendorCount, setVendorCount] = useState(0);
   const [indents, setIndents] = useState<Indent[]>([]);
   const [err, setErr] = useState("");
   const [loadingData, setLoadingData] = useState(true);
@@ -44,21 +45,23 @@ export default function VendorPendingPage() {
     setErr("");
     try {
       const me = await fetch("/api/vendor", { headers: { "x-actor-id": session.id } });
-      const meData = (await me.json()) as { vendor?: { id: string } | null };
-      if (!me.ok || !meData.vendor?.id) {
-        setVendorId(null);
+      const meData = (await me.json()) as { vendors?: { id: string }[]; vendor?: { id: string } | null };
+      const vendors = meData.vendors ?? (meData.vendor ? [meData.vendor] : []);
+      if (!me.ok || !vendors.length) {
+        setVendorCount(0);
         setIndents([]);
-        setErr(!meData.vendor ? "Your account is not linked to a vendor record." : "");
+        setErr(!vendors.length ? "Your account is not linked to a vendor record." : "");
         return;
       }
-      setVendorId(meData.vendor.id);
-      const res = await fetch(`/api/vendors/${meData.vendor.id}/indents?status=pending`, { headers: { "x-actor-id": session.id } });
+      setVendorCount(vendors.length);
+
+      const res = await fetch("/api/indents", { headers: { "x-actor-id": session.id } });
       const data = (await res.json()) as { indents?: Indent[]; error?: string };
       if (!res.ok) {
         setErr(data.error ?? "Could not load");
         return;
       }
-      setIndents(data.indents ?? []);
+      setIndents((data.indents ?? []).filter((i) => i.status === "pending"));
     } catch {
       setErr("Could not load");
       toast.error("Could not load");
@@ -94,15 +97,23 @@ export default function VendorPendingPage() {
 
   return (
     <div className="space-y-4 pb-8">
-      <h1 className="text-xl font-semibold text-slate-900">Pending indents</h1>
+      <div>
+        <h1 className="text-xl font-semibold text-slate-900">Pending indents</h1>
+        {vendorCount > 1 ? (
+          <p className="text-sm text-slate-500">Across {vendorCount} linked vendors</p>
+        ) : null}
+      </div>
       {err ? <p className="text-sm text-amber-800">{err}</p> : null}
       {loadingData ? <p className="text-sm text-slate-500">Loading…</p> : null}
-      {!loadingData && vendorId && indents.length === 0 ? <p className="text-sm text-slate-500">No pending indents.</p> : null}
+      {!loadingData && vendorCount > 0 && indents.length === 0 ? (
+        <p className="text-sm text-slate-500">No pending indents.</p>
+      ) : null}
 
       <ul className="space-y-3">
         {indents.map((i) => (
           <li key={i.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${indentBadge(i.status)}`}>{i.status}</span>
+            {i.vendor_name ? <p className="mt-2 text-xs font-medium text-slate-500">{i.vendor_name}</p> : null}
             <p className="mt-2 font-medium text-slate-900">{i.item_description}</p>
             <p className="text-xs text-slate-600">
               Qty: {i.quantity ?? "—"} {i.unit ? `· ${i.unit}` : ""}
