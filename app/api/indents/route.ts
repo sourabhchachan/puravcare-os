@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
+import { isLinenItem } from "@/lib/linen/access";
 import { getVendorForUser } from "@/lib/api/vendorAccess";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -9,6 +10,7 @@ type PostBody = {
   quantity?: number | null;
   priority?: string;
   patient_id?: string | null;
+  location_id?: string | null;
 };
 
 type PatchBody = {
@@ -38,18 +40,20 @@ export async function GET(request: Request) {
     query = query.eq("created_by", actorId!);
   }
 
-  const [{ data: indents, error: indentsError }, { data: items, error: itemsError }, { data: patients, error: patientsError }] = await Promise.all([
+  const [{ data: indents, error: indentsError }, { data: items, error: itemsError }, { data: patients, error: patientsError }, { data: locations, error: locationsError }] =
+    await Promise.all([
     query,
-    supabase.from("items").select("id, name, vendor_id").eq("is_active", true).not("vendor_id", "is", null).order("name"),
+    supabase.from("items").select("id, name, vendor_id, track_inventory, vendors(category)").eq("is_active", true).not("vendor_id", "is", null).order("name"),
     supabase
       .from("patients")
       .select("id, full_name, ipd_number, uhid")
       .eq("status", "active")
       .eq("admission_type", "ipd")
       .order("full_name"),
+    supabase.from("locations").select("id, name").eq("is_active", true).order("name"),
   ]);
 
-  if (indentsError || itemsError || patientsError) {
+  if (indentsError || itemsError || patientsError || locationsError) {
     return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
   }
 
@@ -102,6 +106,7 @@ export async function GET(request: Request) {
       full_name: p.full_name,
       ipd_number: (p.ipd_number as string | null) ?? (p.uhid as string | null) ?? "",
     })),
+    locations: locations ?? [],
   });
 }
 
@@ -136,7 +141,7 @@ export async function POST(request: Request) {
   const supabase = createServiceClient();
   const { data: item } = await supabase
     .from("items")
-    .select("id, name, vendor_id")
+    .select("id, name, vendor_id, track_inventory")
     .eq("id", itemId)
     .eq("is_active", true)
     .maybeSingle();
@@ -148,27 +153,51 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "item_without_vendor" }, { status: 400 });
   }
 
+  const linenItem = await isLinenItem(supabase, itemId);
   const patientId = body.patient_id?.trim() || null;
-  if (!patientId) {
-    return NextResponse.json({ error: "missing_patient_id" }, { status: 400 });
+  const locationId = body.location_id?.trim() || null;
+
+  if (linenItem) {
+    if (!patientId && !locationId) {
+      return NextResponse.json({ error: "missing_patient_or_location" }, { status: 400 });
+    }
+    if (patientId) {
+      const { data: patient } = await supabase
+        .from("patients")
+        .select("id")
+        .eq("id", patientId)
+        .eq("status", "active")
+        .maybeSingle();
+      if (!patient) return NextResponse.json({ error: "invalid_patient" }, { status: 400 });
+    }
+    if (locationId) {
+      const { data: loc } = await supabase.from("locations").select("id").eq("id", locationId).eq("is_active", true).maybeSingle();
+      if (!loc) return NextResponse.json({ error: "invalid_location" }, { status: 400 });
+    }
+  } else {
+    if (!patientId) {
+      return NextResponse.json({ error: "missing_patient_id" }, { status: 400 });
+    }
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("id")
+      .eq("id", patientId)
+      .eq("status", "active")
+      .eq("admission_type", "ipd")
+      .maybeSingle();
+    if (!patient) return NextResponse.json({ error: "invalid_patient" }, { status: 400 });
   }
-  const { data: patient } = await supabase
-    .from("patients")
-    .select("id")
-    .eq("id", patientId)
-    .eq("status", "active")
-    .eq("admission_type", "ipd")
-    .maybeSingle();
-  if (!patient) return NextResponse.json({ error: "invalid_patient" }, { status: 400 });
 
   const { data, error } = await supabase
     .from("indents")
     .insert({
       vendor_id: item.vendor_id,
+      item_id: itemId,
       item_description: item.name,
       quantity: qty,
       priority,
       patient_id: patientId,
+      location_id: locationId,
       status: "pending",
       created_by: actorId!,
     })

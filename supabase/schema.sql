@@ -862,6 +862,98 @@ DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.inventory_tr
 CREATE POLICY "Allow all for authenticated users"
   ON public.inventory_transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+-- --------------------------------------------------------------------------
+-- Linen inventory
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.locations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS locations_name_ci ON public.locations (lower(name));
+
+CREATE TABLE IF NOT EXISTS public.linen_transactions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id uuid NOT NULL REFERENCES public.items (id) ON DELETE CASCADE,
+  transaction_type text NOT NULL,
+  quantity numeric(10, 2) NOT NULL,
+  from_status text,
+  to_status text NOT NULL,
+  patient_id uuid REFERENCES public.patients (id) ON DELETE SET NULL,
+  location_id uuid REFERENCES public.locations (id) ON DELETE SET NULL,
+  indent_id uuid REFERENCES public.indents (id) ON DELETE SET NULL,
+  linen_return_id uuid,
+  inventory_stock_id uuid REFERENCES public.inventory_stock (id) ON DELETE SET NULL,
+  invoice_number text,
+  created_by uuid REFERENCES public.users (id),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.linen_returns (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id uuid NOT NULL REFERENCES public.items (id) ON DELETE CASCADE,
+  quantity numeric(10, 2) NOT NULL,
+  patient_id uuid REFERENCES public.patients (id) ON DELETE SET NULL,
+  location_id uuid REFERENCES public.locations (id) ON DELETE SET NULL,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'received')),
+  good_quantity numeric(10, 2),
+  damaged_quantity numeric(10, 2),
+  created_by uuid REFERENCES public.users (id),
+  received_by uuid REFERENCES public.users (id),
+  received_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.linen_transactions
+  DROP CONSTRAINT IF EXISTS linen_transactions_linen_return_id_fkey;
+ALTER TABLE public.linen_transactions
+  ADD CONSTRAINT linen_transactions_linen_return_id_fkey
+  FOREIGN KEY (linen_return_id) REFERENCES public.linen_returns (id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS public.linen_followups (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id uuid NOT NULL REFERENCES public.items (id) ON DELETE CASCADE,
+  quantity numeric(10, 2) NOT NULL,
+  source_type text NOT NULL CHECK (source_type IN ('return', 'laundry')),
+  source_id uuid NOT NULL,
+  status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+  resolution text CHECK (resolution IN ('recovered', 'written_off', 'vendor_deducted')),
+  resolution_note text,
+  resolved_by uuid REFERENCES public.users (id),
+  resolved_at timestamptz,
+  created_by uuid REFERENCES public.users (id),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS linen_transactions_item_id_idx ON public.linen_transactions (item_id);
+CREATE INDEX IF NOT EXISTS linen_transactions_created_at_idx ON public.linen_transactions (created_at DESC);
+CREATE INDEX IF NOT EXISTS linen_returns_status_idx ON public.linen_returns (status);
+CREATE INDEX IF NOT EXISTS linen_followups_status_idx ON public.linen_followups (status);
+
+ALTER TABLE public.locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.linen_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.linen_returns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.linen_followups ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.locations;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.locations FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.linen_transactions;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.linen_transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.linen_returns;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.linen_returns FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.linen_followups;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.linen_followups FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+ALTER TABLE public.indents ADD COLUMN IF NOT EXISTS patient_id uuid REFERENCES public.patients (id);
+ALTER TABLE public.indents ADD COLUMN IF NOT EXISTS location_id uuid REFERENCES public.locations (id);
+ALTER TABLE public.indents ADD COLUMN IF NOT EXISTS item_id uuid REFERENCES public.items (id);
+
 -- ============================================================================
 -- Done — schema ready for Phase 3 (role-specific RLS tightening)
 -- ============================================================================

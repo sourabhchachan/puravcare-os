@@ -126,3 +126,12 @@ export function IconInventory({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconLinen({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M4 6h16M4 10h16M4 14h10M4 18h8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M18 14l2 2-2 2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

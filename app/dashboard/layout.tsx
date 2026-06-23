@@ -42,6 +42,7 @@ const ceoLinks = [
   { href: "/dashboard/categories", label: "Categories" },
   { href: "/dashboard/payment-methods", label: "Payment Methods" },
   { href: "/dashboard/customers", label: "Customers" },
+  { href: "/dashboard/locations", label: "Locations" },
   { href: "/dashboard/audit-log", label: "Audit Log" },
 ] as const;
 

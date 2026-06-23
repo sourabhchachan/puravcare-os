@@ -9,6 +9,7 @@ import {
   IconIndent,
   IconInventory,
   IconInvoice,
+  IconLinen,
   IconNotice,
   IconPending,
   IconPatients,
@@ -37,6 +38,7 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/master-bill", label: "Master Bill", icon: IconBill },
         { href: "/dashboard/attendance", label: "Attendance", icon: IconAttendance },
         { href: "/dashboard/inventory", label: "Inventory", icon: IconInventory },
+        { href: "/dashboard/linen", label: "Linen", icon: IconLinen },
       ];
     case "ops":
       return [
@@ -49,6 +51,7 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/vendors", label: "Vendors", icon: IconVendors },
         { href: "/dashboard/attendance", label: "Attendance", icon: IconAttendance },
         { href: "/dashboard/inventory", label: "Inventory", icon: IconInventory },
+        { href: "/dashboard/linen", label: "Linen", icon: IconLinen },
       ];
     case "staff":
       return [
@@ -67,6 +70,7 @@ export function getDashboardTabs(role: UserRole): DashboardTab[] {
         { href: "/dashboard/dispatched", label: "Dispatched", icon: IconTruck },
         { href: "/dashboard/invoices", label: "Invoices", icon: IconInvoice },
         { href: "/dashboard/inventory", label: "Inventory", icon: IconInventory },
+        { href: "/dashboard/linen", label: "Linen", icon: IconLinen },
       ];
     default:
       return [];
