@@ -13,17 +13,21 @@ export async function GET(request: Request) {
   if (!(await assertActiveUser(actorId))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  if (!(await canViewMrdFiles(actorId))) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
+  console.log("[mrd/files] actorId:", actorId);
+  const canView = await canViewMrdFiles(actorId);
+  console.log("[mrd/files] canView:", canView);
+  if (!canView) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const supabase = createServiceClient();
-  const { data: files, error } = await supabase
+  const { data: files, error: filesError } = await supabase
     .from("mrd_files")
     .select("id, ipd_number, patient_id, status, added_manually, created_at, updated_at")
     .order("updated_at", { ascending: false });
 
-  if (error) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+  console.log("[mrd/files] files count:", files?.length, "error:", filesError?.message);
+  if (filesError) {
+    return NextResponse.json({ error: "fetch_failed", detail: filesError.message }, { status: 500 });
+  }
 
   const patientIds = [...new Set((files ?? []).map((f) => f.patient_id).filter(Boolean))] as string[];
   const fileIds = (files ?? []).map((f) => f.id as string);
