@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { useToast } from "@/components/ui/ToastProvider";
@@ -23,6 +23,11 @@ type EntryRow = {
   payment_method_name?: string | null;
   customer_name?: string | null;
   custom_fields?: Record<string, string | number>;
+  ipd_number?: string;
+  is_patient_related?: boolean;
+  is_billed_to_cobra?: boolean;
+  total_bill_amount?: number;
+  pending_payment?: number;
 };
 
 type MemberRow = { user_id: string; full_name: string; role: string };
@@ -256,6 +261,25 @@ export default function CashbookDetailPage() {
                   <span className="text-slate-300"> | </span>
                   <span>{e.customer_name ?? "—"}</span>
                 </p>
+                <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">IPD: {e.ipd_number ?? "—"}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 font-semibold ${e.is_patient_related ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-600"}`}
+                  >
+                    Patient: {e.is_patient_related ? "Yes" : "No"}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 font-semibold ${e.is_billed_to_cobra ? "bg-violet-100 text-violet-800" : "bg-slate-100 text-slate-600"}`}
+                  >
+                    Cobra: {e.is_billed_to_cobra ? "Yes" : "No"}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2 text-xs">
+                  <span className="text-slate-600">Bill: {formatInr(Number(e.total_bill_amount ?? 0))}</span>
+                  <span className={Number(e.pending_payment ?? 0) > 0 ? "font-semibold text-red-600" : "font-semibold text-emerald-600"}>
+                    Pending: {formatInr(Number(e.pending_payment ?? 0))}
+                  </span>
+                </div>
                 <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
                   <span>
                     {e.entry_type === "in" ? <span className="font-semibold text-emerald-600">{formatInr(Number(e.amount))} IN</span> : null}
@@ -395,6 +419,10 @@ function EntrySheet({
   const [categoryId, setCategoryId] = useState(initial?.category_id ?? "");
   const [paymentMethodId, setPaymentMethodId] = useState(initial?.payment_method_id ?? "");
   const [customerId, setCustomerId] = useState(initial?.customer_id ?? "");
+  const [ipdNumber, setIpdNumber] = useState(initial?.ipd_number ?? "");
+  const [isPatientRelated, setIsPatientRelated] = useState(initial?.is_patient_related ?? false);
+  const [isBilledToCobra, setIsBilledToCobra] = useState(initial?.is_billed_to_cobra ?? false);
+  const [totalBillAmount, setTotalBillAmount] = useState(initial != null ? String(initial.total_bill_amount ?? "") : "");
   const [categories, setCategories] = useState<MasterOpt[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<MasterOpt[]>([]);
   const [customers, setCustomers] = useState<MasterOpt[]>([]);
@@ -446,12 +474,32 @@ function EntrySheet({
   const paymentMethodOptions = mergeMasterOptions(paymentMethods, initial?.payment_method_id, initial?.payment_method_name);
   const customerOptions = mergeMasterOptions(customers, initial?.customer_id, initial?.customer_name);
 
+  const pendingPayment = useMemo(() => {
+    const total = Number(totalBillAmount);
+    const amt = Number(amount);
+    if (Number.isNaN(total)) return 0;
+    const paid = entryType === "out" && !Number.isNaN(amt) ? amt : 0;
+    return total - paid;
+  }, [totalBillAmount, amount, entryType]);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     if (!categoryId || !paymentMethodId || !customerId) {
       setError("Select category, payment method, and customer.");
       toast.error("Select category, payment method, and customer.");
+      return;
+    }
+    const ipd = ipdNumber.trim();
+    if (!ipd) {
+      setError("IPD number is required.");
+      toast.error("IPD number is required.");
+      return;
+    }
+    const totalBill = Number(totalBillAmount);
+    if (totalBillAmount.trim() === "" || Number.isNaN(totalBill) || totalBill < 0) {
+      setError("Enter a valid total bill amount.");
+      toast.error("Enter a valid total bill amount.");
       return;
     }
     for (const field of customFieldDefs) {
@@ -495,6 +543,10 @@ function EntrySheet({
             category_id: categoryId,
             payment_method_id: paymentMethodId,
             customer_id: customerId,
+            ipd_number: ipd,
+            is_patient_related: isPatientRelated,
+            is_billed_to_cobra: isBilledToCobra,
+            total_bill_amount: totalBill,
             custom_fields: customPayload,
           }),
         });
@@ -516,6 +568,10 @@ function EntrySheet({
             category_id: categoryId,
             payment_method_id: paymentMethodId,
             customer_id: customerId,
+            ipd_number: ipd,
+            is_patient_related: isPatientRelated,
+            is_billed_to_cobra: isBilledToCobra,
+            total_bill_amount: totalBill,
             custom_fields: customPayload,
           }),
         });
@@ -543,7 +599,7 @@ function EntrySheet({
         : "Any past date up to today.";
 
   const mastersReady = !mastersLoading;
-  const refsOk = Boolean(categoryId && paymentMethodId && customerId);
+  const refsOk = Boolean(categoryId && paymentMethodId && customerId && ipdNumber.trim() && totalBillAmount.trim() !== "");
   const disableSave = saving || !mastersReady || !refsOk;
 
   return (
@@ -615,6 +671,74 @@ function EntrySheet({
                   +
                 </button>
               ) : null}
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">IPD Number *</label>
+            <input
+              value={ipdNumber}
+              onChange={(e) => setIpdNumber(e.target.value)}
+              placeholder="Enter IPD number or N/A"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Patient Related *</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${!isPatientRelated ? "border-slate-800 bg-slate-100 text-slate-900" : "border-slate-200"}`}
+                onClick={() => setIsPatientRelated(false)}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${isPatientRelated ? "border-blue-500 bg-blue-50 text-blue-800" : "border-slate-200"}`}
+                onClick={() => setIsPatientRelated(true)}
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Bills Added to Cobra *</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${!isBilledToCobra ? "border-slate-800 bg-slate-100 text-slate-900" : "border-slate-200"}`}
+                onClick={() => setIsBilledToCobra(false)}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${isBilledToCobra ? "border-violet-500 bg-violet-50 text-violet-800" : "border-slate-200"}`}
+                onClick={() => setIsBilledToCobra(true)}
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Total Bill Amount *</label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={totalBillAmount}
+              onChange={(e) => setTotalBillAmount(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Pending Payment</label>
+            <div
+              className={`w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold ${pendingPayment > 0 ? "text-red-600" : "text-emerald-600"}`}
+            >
+              {formatInr(pendingPayment)}
             </div>
           </div>
           {customFieldDefs.map((f) => (

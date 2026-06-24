@@ -4,6 +4,7 @@ import { assertActiveUser, getActorId } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isEntryDateAllowed, parseEntryDate } from "@/lib/cashbook/entryDate";
+import { calcPendingPayment, parseBillFields } from "@/lib/cashbook/entryBilling";
 
 type PostBody = {
   entry_type?: string;
@@ -13,6 +14,10 @@ type PostBody = {
   category_id?: string;
   payment_method_id?: string;
   customer_id?: string;
+  ipd_number?: string;
+  is_patient_related?: boolean;
+  is_billed_to_cobra?: boolean;
+  total_bill_amount?: number;
   custom_fields?: Record<string, unknown>;
 };
 
@@ -113,6 +118,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
+  const billFields = parseBillFields(body);
+  if (!billFields.ok) return NextResponse.json({ error: billFields.error }, { status: 400 });
+
+  const pending_payment = calcPendingPayment(entryType as "in" | "out", billFields.total_bill_amount, Number(amount));
+
   const { data: row, error } = await supabase
     .from("cash_entries")
     .insert({
@@ -125,6 +135,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       category_id: categoryId,
       payment_method_id: paymentMethodId,
       customer_id: customerId,
+      ipd_number: billFields.ipd_number,
+      is_patient_related: billFields.is_patient_related,
+      is_billed_to_cobra: billFields.is_billed_to_cobra,
+      total_bill_amount: billFields.total_bill_amount,
+      pending_payment,
       custom_fields: normalizedCustomFields,
     })
     .select("*")

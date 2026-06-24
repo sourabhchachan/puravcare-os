@@ -4,6 +4,7 @@ import { assertActiveUser, getActorId } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isEntryDateAllowed, parseEntryDate } from "@/lib/cashbook/entryDate";
+import { calcPendingPayment, parseBillFields } from "@/lib/cashbook/entryBilling";
 
 type PatchBody = {
   entry_type?: string;
@@ -13,6 +14,10 @@ type PatchBody = {
   category_id?: string;
   payment_method_id?: string;
   customer_id?: string;
+  ipd_number?: string;
+  is_patient_related?: boolean;
+  is_billed_to_cobra?: boolean;
+  total_bill_amount?: number;
   custom_fields?: Record<string, unknown>;
 };
 
@@ -35,7 +40,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { data: entry } = await supabase
     .from("cash_entries")
-    .select("id, created_by, cashbook_id")
+    .select("id, created_by, cashbook_id, entry_type, amount, ipd_number, is_patient_related, is_billed_to_cobra, total_bill_amount")
     .eq("id", entryId)
     .eq("cashbook_id", cashbookId)
     .maybeSingle();
@@ -139,9 +144,35 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     updates.custom_fields = normalizedCustomFields;
   }
 
+  const hasBillFieldUpdate =
+    body.ipd_number !== undefined ||
+    body.is_patient_related !== undefined ||
+    body.is_billed_to_cobra !== undefined ||
+    body.total_bill_amount !== undefined;
+
+  if (hasBillFieldUpdate) {
+    const billFields = parseBillFields({
+      ipd_number: body.ipd_number !== undefined ? body.ipd_number : entry.ipd_number,
+      is_patient_related: body.is_patient_related !== undefined ? body.is_patient_related : entry.is_patient_related,
+      is_billed_to_cobra: body.is_billed_to_cobra !== undefined ? body.is_billed_to_cobra : entry.is_billed_to_cobra,
+      total_bill_amount: body.total_bill_amount !== undefined ? body.total_bill_amount : entry.total_bill_amount,
+    });
+    if (!billFields.ok) return NextResponse.json({ error: billFields.error }, { status: 400 });
+    updates.ipd_number = billFields.ipd_number;
+    updates.is_patient_related = billFields.is_patient_related;
+    updates.is_billed_to_cobra = billFields.is_billed_to_cobra;
+    updates.total_bill_amount = billFields.total_bill_amount;
+  }
+
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "no_updates" }, { status: 400 });
   }
+
+  const nextEntryType = (updates.entry_type ?? entry.entry_type) as "in" | "out";
+  const nextAmount = updates.amount !== undefined ? Number(updates.amount) : Number(entry.amount);
+  const nextTotalBill =
+    updates.total_bill_amount !== undefined ? Number(updates.total_bill_amount) : Number(entry.total_bill_amount);
+  updates.pending_payment = calcPendingPayment(nextEntryType, nextTotalBill, nextAmount);
 
   const { data: updated, error } = await supabase.from("cash_entries").update(updates).eq("id", entryId).select("*").single();
 

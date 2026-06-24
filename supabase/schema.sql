@@ -410,6 +410,11 @@ CREATE TABLE public.cash_entries (
   category_id uuid REFERENCES public.cashbook_categories (id),
   payment_method_id uuid REFERENCES public.payment_methods (id),
   customer_id uuid REFERENCES public.customers (id),
+  ipd_number text NOT NULL DEFAULT 'N/A',
+  is_patient_related boolean NOT NULL DEFAULT false,
+  is_billed_to_cobra boolean NOT NULL DEFAULT false,
+  total_bill_amount numeric(12, 2) NOT NULL DEFAULT 0,
+  pending_payment numeric(12, 2) NOT NULL DEFAULT 0,
   custom_fields jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -1036,6 +1041,13 @@ CREATE POLICY "Allow all for authenticated users"
 DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.mrd_transactions;
 CREATE POLICY "Allow all for authenticated users"
   ON public.mrd_transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Cashbook entry billing fields
+ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS ipd_number text NOT NULL DEFAULT 'N/A';
+ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS is_patient_related boolean NOT NULL DEFAULT false;
+ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS is_billed_to_cobra boolean NOT NULL DEFAULT false;
+ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS total_bill_amount numeric(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS pending_payment numeric(12, 2) NOT NULL DEFAULT 0;
 
 -- ============================================================================
 -- Done — schema ready for Phase 3 (role-specific RLS tightening)

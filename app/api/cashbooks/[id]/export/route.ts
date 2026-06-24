@@ -50,7 +50,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   let q = supabase
     .from("cash_entries")
     .select(
-      "id, entry_type, amount, description, entry_date, created_by, created_at, category_id, payment_method_id, customer_id",
+      "id, entry_type, amount, description, entry_date, created_by, created_at, category_id, payment_method_id, customer_id, ipd_number, is_patient_related, is_billed_to_cobra, total_bill_amount, pending_payment",
     )
     .eq("cashbook_id", cashbookId)
     .gte("entry_date", new Date(startMs).toISOString())
@@ -106,6 +106,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       Category: e.category_id ? (catMap[e.category_id as string] ?? "—") : "—",
       "Payment Method": e.payment_method_id ? (pmMap[e.payment_method_id as string] ?? "—") : "—",
       Customer: e.customer_id ? (custMap[e.customer_id as string] ?? "—") : "—",
+      "IPD Number": (e.ipd_number as string) ?? "",
+      "Patient Related": e.is_patient_related ? "Yes" : "No",
+      "Bills Added to Cobra": e.is_billed_to_cobra ? "Yes" : "No",
+      "Total Bill Amount": Number(e.total_bill_amount ?? 0),
+      "Pending Payment": Number(e.pending_payment ?? 0),
       Description: (e.description as string) ?? "",
       IN: inn || "",
       OUT: out || "",

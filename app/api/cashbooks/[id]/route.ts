@@ -61,7 +61,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   let entriesQuery = supabase
     .from("cash_entries")
     .select(
-      "id, entry_type, amount, description, entry_date, created_by, created_at, category_id, payment_method_id, customer_id, custom_fields",
+      "id, entry_type, amount, description, entry_date, created_by, created_at, category_id, payment_method_id, customer_id, custom_fields, ipd_number, is_patient_related, is_billed_to_cobra, total_bill_amount, pending_payment",
     )
     .eq("cashbook_id", cashbookId)
     .order("entry_date", { ascending: false })
