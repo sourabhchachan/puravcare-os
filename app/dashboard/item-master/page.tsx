@@ -12,7 +12,9 @@ type ItemRow = {
   name: string;
   price: number;
   vendor_id: string | null;
+  vendor_ids?: string[];
   vendor_name: string | null;
+  vendor_names?: string[];
   is_patient_linked: boolean;
   is_active: boolean;
   track_inventory?: boolean;
@@ -189,7 +191,8 @@ export default function ItemMasterPage() {
               <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setSheet(row)}>
                 <p className="truncate font-semibold text-slate-900">{row.name}</p>
                 <p className="text-xs text-slate-600">
-                  {formatInr(row.price)} · {row.vendor_name ?? "—"} · {row.is_patient_linked ? "Patient-linked" : "Not patient-linked"}
+                  {formatInr(row.price)} · {(row.vendor_names ?? (row.vendor_name ? [row.vendor_name] : [])).join(", ") || "—"} ·{" "}
+                  {row.is_patient_linked ? "Patient-linked" : "Not patient-linked"}
                 </p>
               </button>
               <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-slate-700">
@@ -240,7 +243,9 @@ function ItemSheet({
   const toast = useToast();
   const [name, setName] = useState(initial?.name ?? "");
   const [price, setPrice] = useState(initial != null ? String(initial.price) : "");
-  const [vendorId, setVendorId] = useState(initial?.vendor_id ?? "");
+  const [vendorIds, setVendorIds] = useState<string[]>(
+    initial?.vendor_ids?.length ? initial.vendor_ids : initial?.vendor_id ? [initial.vendor_id] : [],
+  );
   const [patientLinked, setPatientLinked] = useState(initial?.is_patient_linked ?? false);
   const [active, setActive] = useState(initial?.is_active ?? true);
   const [trackInventory, setTrackInventory] = useState(initial?.track_inventory === true);
@@ -264,9 +269,9 @@ function ItemSheet({
       toast.error("Enter a valid price.");
       return;
     }
-    if (!vendorId) {
-      setError("Vendor is required.");
-      toast.error("Vendor is required.");
+    if (!vendorIds.length) {
+      setError("Select at least one vendor.");
+      toast.error("Select at least one vendor.");
       return;
     }
 
@@ -275,7 +280,7 @@ function ItemSheet({
       const body: Record<string, unknown> = {
         name: name.trim(),
         price: priceNum,
-        vendor_id: vendorId,
+        vendor_ids: vendorIds,
         is_patient_linked: patientLinked,
         is_active: active,
         track_inventory: trackInventory,
@@ -358,20 +363,29 @@ function ItemSheet({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Vendor</label>
-            <select
-              value={vendorId}
-              onChange={(e) => setVendorId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              required
-            >
-              <option value="">Select vendor</option>
-              {vendors.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Vendors *</label>
+            <div className="flex flex-wrap gap-2">
+              {vendors.map((v) => {
+                const selected = vendorIds.includes(v.id);
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() =>
+                      setVendorIds((prev) =>
+                        prev.includes(v.id) ? prev.filter((id) => id !== v.id) : [...prev, v.id],
+                      )
+                    }
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                      selected ? "border-[#2563EB] bg-blue-50 text-[#2563EB]" : "border-slate-200 bg-white text-slate-600"
+                    }`}
+                  >
+                    {v.name}
+                  </button>
+                );
+              })}
+            </div>
+            {vendors.length === 0 ? <p className="mt-1 text-xs text-slate-500">No active vendors.</p> : null}
           </div>
           <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm">
             <span>Track inventory</span>
@@ -406,7 +420,7 @@ function ItemSheet({
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <button
             type="submit"
-            disabled={saving || !name.trim()}
+            disabled={saving || !name.trim() || vendorIds.length === 0}
             className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}

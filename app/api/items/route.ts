@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, canCreateItems, getActorId } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
+import {
+  enrichItemRow,
+  fetchItemVendorLinks,
+  syncItemVendors,
+  validateVendorIds,
+} from "@/lib/items/vendorLinks";
 import { createServiceClient } from "@/lib/supabase/service";
 
 async function assertItemMasterAccess(actorId: string | null) {
@@ -18,17 +24,19 @@ export async function GET(request: Request) {
 
   const supabase = createServiceClient();
   const [{ data: items, error: itemsError }, { data: vendors }] = await Promise.all([
-    supabase.from("items").select("id, name, price, vendor_id, is_patient_linked, is_active, track_inventory, min_stock_threshold, created_at").order("name"),
+    supabase
+      .from("items")
+      .select("id, name, price, vendor_id, is_patient_linked, is_active, track_inventory, min_stock_threshold, created_at")
+      .order("name"),
     supabase.from("vendors").select("id, name").eq("is_active", true).order("name"),
   ]);
 
   if (itemsError) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
 
   const vendorMap = Object.fromEntries((vendors ?? []).map((v) => [v.id, v.name]));
-  const rows = (items ?? []).map((row) => ({
-    ...row,
-    vendor_name: row.vendor_id ? (vendorMap[row.vendor_id as string] as string) ?? "—" : null,
-  }));
+  const itemIds = (items ?? []).map((i) => i.id as string);
+  const vendorIdsByItem = await fetchItemVendorLinks(supabase, itemIds);
+  const rows = (items ?? []).map((row) => enrichItemRow(row, vendorIdsByItem, vendorMap));
 
   return NextResponse.json({ items: rows, vendors: vendors ?? [] });
 }
@@ -37,11 +45,20 @@ type PostBody = {
   name?: string;
   price?: number;
   vendor_id?: string | null;
+  vendor_ids?: string[];
   is_patient_linked?: boolean;
   is_active?: boolean;
   track_inventory?: boolean;
   min_stock_threshold?: number | null;
 };
+
+function parseVendorIds(body: PostBody): string[] {
+  if (Array.isArray(body.vendor_ids) && body.vendor_ids.length) {
+    return [...new Set(body.vendor_ids.map((id) => id.trim()).filter(Boolean))];
+  }
+  const single = body.vendor_id?.trim();
+  return single ? [single] : [];
+}
 
 export async function POST(request: Request) {
   let body: PostBody;
@@ -63,15 +80,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_price" }, { status: 400 });
   }
 
-  const vendorId = body.vendor_id?.trim() || null;
-  if (!vendorId) return NextResponse.json({ error: "missing_vendor" }, { status: 400 });
+  const vendorIds = parseVendorIds(body);
+  if (!vendorIds.length) return NextResponse.json({ error: "missing_vendor" }, { status: 400 });
 
   const supabase = createServiceClient();
   const isCeo = await assertCeo(actorId!);
 
-  {
-    const { data: v } = await supabase.from("vendors").select("id").eq("id", vendorId).maybeSingle();
-    if (!v) return NextResponse.json({ error: "invalid_vendor" }, { status: 400 });
+  if (!(await validateVendorIds(supabase, vendorIds))) {
+    return NextResponse.json({ error: "invalid_vendor" }, { status: 400 });
   }
 
   const trackInventory = Boolean(body.track_inventory);
@@ -89,7 +105,7 @@ export async function POST(request: Request) {
     .insert({
       name,
       price: Number(price),
-      vendor_id: vendorId,
+      vendor_id: vendorIds[0],
       is_patient_linked: Boolean(body.is_patient_linked),
       is_active: body.is_active !== false,
       track_inventory: trackInventory,
@@ -104,5 +120,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "insert_failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ item: data });
+  try {
+    await syncItemVendors(supabase, data.id as string, vendorIds);
+  } catch {
+    await supabase.from("items").delete().eq("id", data.id as string);
+    return NextResponse.json({ error: "vendor_link_failed" }, { status: 500 });
+  }
+
+  const vendorMap = Object.fromEntries(
+    ((await supabase.from("vendors").select("id, name").in("id", vendorIds)).data ?? []).map((v) => [v.id, v.name]),
+  );
+  const vendorIdsByItem = new Map([[data.id as string, vendorIds]]);
+  return NextResponse.json({ item: enrichItemRow(data, vendorIdsByItem, vendorMap) });
 }

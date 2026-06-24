@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 
 type PostBody = {
   item_id?: string;
+  vendor_id?: string;
   quantity?: number | null;
   priority?: string;
   patient_id?: string | null;
@@ -40,10 +41,10 @@ export async function GET(request: Request) {
     query = query.eq("created_by", actorId!);
   }
 
-  const [{ data: indents, error: indentsError }, { data: items, error: itemsError }, { data: patients, error: patientsError }, { data: locations, error: locationsError }] =
+  const [{ data: indents, error: indentsError }, { data: itemRows, error: itemsError }, { data: patients, error: patientsError }, { data: locations, error: locationsError }] =
     await Promise.all([
     query,
-    supabase.from("items").select("id, name, vendor_id, track_inventory, vendors(category)").eq("is_active", true).not("vendor_id", "is", null).order("name"),
+    supabase.from("items").select("id, name, vendor_id, track_inventory").eq("is_active", true).order("name"),
     supabase
       .from("patients")
       .select("id, full_name, ipd_number, uhid")
@@ -57,9 +58,28 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
   }
 
+  const activeItemIds = (itemRows ?? []).map((i) => i.id as string);
+  const { data: vendorLinks, error: linksError } = activeItemIds.length
+    ? await supabase.from("item_vendors").select("item_id, vendor_id").in("item_id", activeItemIds)
+    : { data: [], error: null };
+  if (linksError) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+
+  const vendorsByItem = new Map<string, string[]>();
+  for (const link of vendorLinks ?? []) {
+    const itemId = link.item_id as string;
+    const vendorId = link.vendor_id as string;
+    const list = vendorsByItem.get(itemId) ?? [];
+    list.push(vendorId);
+    vendorsByItem.set(itemId, list);
+  }
+
   const vendorIds = [
     ...new Set(
-      [...(indents ?? []).map((i) => i.vendor_id as string), ...(items ?? []).map((i) => i.vendor_id as string)].filter(Boolean),
+      [
+        ...(indents ?? []).map((i) => i.vendor_id as string),
+        ...(vendorLinks ?? []).map((l) => l.vendor_id as string),
+        ...(itemRows ?? []).map((i) => i.vendor_id as string),
+      ].filter(Boolean),
     ),
   ];
   const vendorNames = new Map<string, string>();
@@ -95,12 +115,22 @@ export async function GET(request: Request) {
       ipd_number: row.patient_id ? patientIpd.get(row.patient_id as string) ?? "—" : null,
       raised_by_name: raisedBy.get(row.created_by as string) ?? "—",
     })),
-    items: (items ?? []).map((row) => ({
-      id: row.id,
-      name: row.name,
-      vendor_id: row.vendor_id,
-      vendor_name: vendorNames.get(row.vendor_id as string) ?? "—",
-    })),
+    items: (itemRows ?? [])
+      .map((row) => {
+        const linkedVendorIds = vendorsByItem.get(row.id as string) ?? [];
+        const fallback = row.vendor_id ? [row.vendor_id as string] : [];
+        const ids = linkedVendorIds.length ? linkedVendorIds : fallback;
+        if (!ids.length) return null;
+        const vendors = ids.map((id) => ({ id, name: vendorNames.get(id) ?? "—" }));
+        return {
+          id: row.id,
+          name: row.name,
+          vendor_id: ids[0],
+          vendor_name: vendors.map((v) => v.name).join(", "),
+          vendors,
+        };
+      })
+      .filter(Boolean),
     patients: (patients ?? []).map((p) => ({
       id: p.id,
       full_name: p.full_name,
@@ -128,6 +158,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "missing_item" }, { status: 400 });
   }
 
+  const requestedVendorId = body.vendor_id?.trim() || null;
+
   const qty =
     body.quantity != null && !Number.isNaN(Number(body.quantity)) && Number(body.quantity) > 0 ? Number(body.quantity) : null;
   if (qty == null) {
@@ -149,8 +181,27 @@ export async function POST(request: Request) {
   if (!item) {
     return NextResponse.json({ error: "invalid_item" }, { status: 400 });
   }
-  if (!item.vendor_id) {
+
+  const { data: vendorLinks } = await supabase.from("item_vendors").select("vendor_id").eq("item_id", itemId);
+  const linkedVendorIds = [
+    ...new Set(
+      [
+        ...(vendorLinks ?? []).map((l) => l.vendor_id as string),
+        ...(item.vendor_id ? [item.vendor_id as string] : []),
+      ].filter(Boolean),
+    ),
+  ];
+  if (!linkedVendorIds.length) {
     return NextResponse.json({ error: "item_without_vendor" }, { status: 400 });
+  }
+
+  const vendorId =
+    requestedVendorId ?? (linkedVendorIds.length === 1 ? linkedVendorIds[0] : null);
+  if (!vendorId) {
+    return NextResponse.json({ error: "missing_vendor_id" }, { status: 400 });
+  }
+  if (!linkedVendorIds.includes(vendorId)) {
+    return NextResponse.json({ error: "invalid_vendor_for_item" }, { status: 400 });
   }
 
   const linenItem = await isLinenItem(supabase, itemId);
@@ -191,7 +242,7 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from("indents")
     .insert({
-      vendor_id: item.vendor_id,
+      vendor_id: vendorId,
       item_id: itemId,
       item_description: item.name,
       quantity: qty,

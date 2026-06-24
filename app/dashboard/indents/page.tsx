@@ -26,6 +26,7 @@ type ItemOpt = {
   name: string;
   vendor_id: string;
   vendor_name: string;
+  vendors: { id: string; name: string }[];
 };
 
 type PatientOpt = {
@@ -385,16 +386,37 @@ function RaiseIndentSheet({
 }) {
   const toast = useToast();
   const [itemId, setItemId] = useState("");
+  const [vendorId, setVendorId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [priority, setPriority] = useState<"critical" | "high" | "medium" | "low">("medium");
   const [patientId, setPatientId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const selectedItem = useMemo(() => items.find((item) => item.id === itemId), [items, itemId]);
+
+  useEffect(() => {
+    if (!selectedItem) {
+      setVendorId("");
+      return;
+    }
+    if (selectedItem.vendors.length === 1) {
+      setVendorId(selectedItem.vendors[0].id);
+    } else {
+      setVendorId("");
+    }
+  }, [selectedItem]);
+
   const itemOptions = useMemo(
-    () => items.map((item) => ({ id: item.id, label: `${item.name} (${item.vendor_name})` })),
+    () =>
+      items.map((item) => ({
+        id: item.id,
+        label: `${item.name} (${item.vendors.map((v) => v.name).join(", ")})`,
+      })),
     [items],
   );
+
+  const needsVendorPick = Boolean(selectedItem && selectedItem.vendors.length > 1);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -404,7 +426,13 @@ function RaiseIndentSheet({
       const res = await fetch("/api/indents", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
-        body: JSON.stringify({ item_id: itemId, quantity: Number(quantity), priority, patient_id: patientId }),
+        body: JSON.stringify({
+          item_id: itemId,
+          vendor_id: vendorId,
+          quantity: Number(quantity),
+          priority,
+          patient_id: patientId,
+        }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -438,6 +466,24 @@ function RaiseIndentSheet({
               placeholder="Type to filter items…"
             />
           </div>
+          {needsVendorPick ? (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Vendor</label>
+              <select
+                value={vendorId}
+                onChange={(e) => setVendorId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+                required
+              >
+                <option value="">Select vendor</option>
+                {selectedItem?.vendors.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Quantity</label>
             <input
@@ -482,7 +528,7 @@ function RaiseIndentSheet({
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <button
             type="submit"
-            disabled={saving || !itemId || !quantity || !patientId}
+            disabled={saving || !itemId || !vendorId || !quantity || !patientId}
             className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}

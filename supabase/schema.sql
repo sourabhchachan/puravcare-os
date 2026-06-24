@@ -23,6 +23,7 @@ DROP TABLE IF EXISTS public.task_events CASCADE;
 DROP TABLE IF EXISTS public.tasks CASCADE;
 DROP TABLE IF EXISTS public.task_master CASCADE;
 DROP TABLE IF EXISTS public.psi_nodes CASCADE;
+DROP TABLE IF EXISTS public.item_vendors CASCADE;
 DROP TABLE IF EXISTS public.items CASCADE;
 DROP TABLE IF EXISTS public.vendors CASCADE;
 DROP TABLE IF EXISTS public.patients CASCADE;
@@ -486,6 +487,18 @@ CREATE INDEX task_events_task_id_idx ON public.task_events (task_id);
 CREATE INDEX cash_entries_cashbook_id_idx ON public.cash_entries (cashbook_id);
 CREATE INDEX cash_entries_entry_date_idx ON public.cash_entries (entry_date);
 
+-- 4.5b item_vendors (many-to-many items ↔ vendors)
+CREATE TABLE public.item_vendors (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id uuid NOT NULL REFERENCES public.items (id) ON DELETE CASCADE,
+  vendor_id uuid NOT NULL REFERENCES public.vendors (id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (item_id, vendor_id)
+);
+
+CREATE INDEX item_vendors_item_id_idx ON public.item_vendors (item_id);
+CREATE INDEX item_vendors_vendor_id_idx ON public.item_vendors (vendor_id);
+
 CREATE INDEX billable_items_patient_id_idx ON public.billable_items (patient_id);
 CREATE INDEX billable_items_status_idx ON public.billable_items (status);
 
@@ -544,6 +557,7 @@ ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.patients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vendors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.item_vendors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.psi_nodes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_master ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
@@ -592,6 +606,13 @@ CREATE POLICY "Allow all for authenticated users"
 
 CREATE POLICY "Allow all for authenticated users"
   ON public.items
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Allow all for authenticated users"
+  ON public.item_vendors
   FOR ALL
   TO authenticated
   USING (true)
@@ -1048,6 +1069,27 @@ ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS is_patient_related bool
 ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS is_billed_to_cobra boolean NOT NULL DEFAULT false;
 ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS total_bill_amount numeric(12, 2) NOT NULL DEFAULT 0;
 ALTER TABLE public.cash_entries ADD COLUMN IF NOT EXISTS pending_payment numeric(12, 2) NOT NULL DEFAULT 0;
+
+-- Item ↔ vendor many-to-many
+CREATE TABLE IF NOT EXISTS public.item_vendors (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id uuid NOT NULL REFERENCES public.items (id) ON DELETE CASCADE,
+  vendor_id uuid NOT NULL REFERENCES public.vendors (id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (item_id, vendor_id)
+);
+
+CREATE INDEX IF NOT EXISTS item_vendors_item_id_idx ON public.item_vendors (item_id);
+CREATE INDEX IF NOT EXISTS item_vendors_vendor_id_idx ON public.item_vendors (vendor_id);
+
+INSERT INTO public.item_vendors (item_id, vendor_id)
+SELECT id, vendor_id FROM public.items WHERE vendor_id IS NOT NULL
+ON CONFLICT (item_id, vendor_id) DO NOTHING;
+
+ALTER TABLE public.item_vendors ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for authenticated users" ON public.item_vendors;
+CREATE POLICY "Allow all for authenticated users"
+  ON public.item_vendors FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- ============================================================================
 -- Done — schema ready for Phase 3 (role-specific RLS tightening)

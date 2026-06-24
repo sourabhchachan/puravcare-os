@@ -1,5 +1,7 @@
 import type { createServiceClient } from "@/lib/supabase/service";
 
+import { fetchItemIdsForVendors } from "@/lib/items/vendorLinks";
+
 type Supabase = ReturnType<typeof createServiceClient>;
 
 export type StockLevelRow = {
@@ -63,9 +65,13 @@ export async function fetchStockLevels(
     .eq("is_active", true);
 
   if (options?.vendorIds?.length) {
-    itemsQuery = itemsQuery.in("vendor_id", options.vendorIds);
+    const itemIds = await fetchItemIdsForVendors(supabase, options.vendorIds);
+    if (!itemIds.length) return [];
+    itemsQuery = itemsQuery.in("id", itemIds);
   } else if (options?.vendorId) {
-    itemsQuery = itemsQuery.eq("vendor_id", options.vendorId);
+    const itemIds = await fetchItemIdsForVendors(supabase, [options.vendorId]);
+    if (!itemIds.length) return [];
+    itemsQuery = itemsQuery.in("id", itemIds);
   }
 
   const { data: items, error: itemsErr } = await itemsQuery.order("name");

@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { assertCeoOrOps } from "@/lib/api/ceoOrOps";
 import { fetchStockLevels } from "@/lib/inventory/stockLevels";
-import { canViewVendor, getVendorIdsForUser } from "@/lib/api/vendorAccess";
+import { getVendorIdsForUser } from "@/lib/api/vendorAccess";
+import { fetchItemIdsForVendors } from "@/lib/items/vendorLinks";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type PostBody = {
@@ -90,7 +91,9 @@ export async function POST(request: Request) {
 
   if (itemErr) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
   if (!item || !item.is_active) return NextResponse.json({ error: "invalid_item" }, { status: 400 });
-  if (!item.vendor_id || !(await canViewVendor(actorId!, item.vendor_id as string))) {
+
+  const linkedItemIds = await fetchItemIdsForVendors(supabase, vendorIds);
+  if (!linkedItemIds.includes(itemId)) {
     return NextResponse.json({ error: "item_not_for_vendor" }, { status: 403 });
   }
   if (!item.track_inventory) return NextResponse.json({ error: "inventory_not_tracked" }, { status: 400 });
