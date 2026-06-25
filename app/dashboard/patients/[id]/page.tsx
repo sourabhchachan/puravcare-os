@@ -65,6 +65,7 @@ export default function PatientDetailPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<BillRow | null>(null);
   const [dischargeOpen, setDischargeOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
   const [billExportOpen, setBillExportOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -105,6 +106,16 @@ export default function PatientDetailPage() {
     () => Boolean(session && ["ceo", "ops"].includes(session.role) && patient?.status === "active"),
     [session, patient],
   );
+  const convertToIpdAllowed = useMemo(
+    () =>
+      Boolean(
+        session &&
+          ["ceo", "ops"].includes(session.role) &&
+          patient?.status === "active" &&
+          patient?.admission_type === "opd",
+      ),
+    [session, patient],
+  );
   const readmitAllowed = useMemo(
     () => Boolean(session && session.role === "ceo" && patient?.status === "discharged"),
     [session, patient],
@@ -128,24 +139,35 @@ export default function PatientDetailPage() {
         <Link href="/dashboard/patients" className="text-xs font-medium text-[#2563EB] underline">
           ← Patients
         </Link>
-        {dischargeAllowed ? (
-          <button
-            type="button"
-            onClick={() => setDischargeOpen(true)}
-            className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700"
-          >
-            Discharge Patient
-          </button>
-        ) : null}
-        {readmitAllowed ? (
-          <button
-            type="button"
-            onClick={() => void onReadmit()}
-            className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
-          >
-            Revert to Admitted
-          </button>
-        ) : null}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {convertToIpdAllowed ? (
+            <button
+              type="button"
+              onClick={() => setConvertOpen(true)}
+              className="rounded-lg border border-[#2563EB]/30 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-[#2563EB]"
+            >
+              Convert to IPD
+            </button>
+          ) : null}
+          {dischargeAllowed ? (
+            <button
+              type="button"
+              onClick={() => setDischargeOpen(true)}
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700"
+            >
+              Discharge Patient
+            </button>
+          ) : null}
+          {readmitAllowed ? (
+            <button
+              type="button"
+              onClick={() => void onReadmit()}
+              className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
+            >
+              Revert to Admitted
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -291,6 +313,19 @@ export default function PatientDetailPage() {
           onClose={() => setDischargeOpen(false)}
           onSaved={() => {
             setDischargeOpen(false);
+            void load();
+          }}
+        />
+      ) : null}
+
+      {convertOpen ? (
+        <ConvertToIpdSheet
+          sessionId={session.id}
+          patientId={patient.id}
+          onClose={() => setConvertOpen(false)}
+          onSaved={() => {
+            setConvertOpen(false);
+            toast.success("Patient converted to IPD");
             void load();
           }}
         />
@@ -510,6 +545,89 @@ function CancelBillItemSheet({
             className="w-full rounded-lg bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
             {saving ? "Cancelling..." : "Confirm Cancel"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ConvertToIpdSheet({
+  sessionId,
+  patientId,
+  onClose,
+  onSaved,
+}: {
+  sessionId: string;
+  patientId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [ipdNumber, setIpdNumber] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    const ipd = ipdNumber.trim();
+    if (!ipd) {
+      setError("IPD number is required.");
+      toast.error("IPD number is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/patients/${patientId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-actor-id": sessionId },
+        body: JSON.stringify({ action: "convert_to_ipd", ipd_number: ipd }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        const message =
+          body.error === "ipd_number_taken"
+            ? "This IPD number is already in use"
+            : (body.error ?? "Could not convert to IPD");
+        setError(message);
+        toast.error(message);
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Could not convert to IPD");
+      toast.error("Could not convert to IPD");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
+      <button type="button" className="flex-1" onClick={onClose} aria-label="Close" />
+      <div className="mx-auto w-full max-w-[430px] rounded-t-2xl bg-white p-5 shadow-lg">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <h3 className="text-lg font-semibold text-[#2563EB]">Convert to IPD</h3>
+        <p className="mt-2 text-sm text-slate-600">This will convert the patient to IPD admission.</p>
+        <form className="mt-4 space-y-3" onSubmit={onSubmit}>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">IPD Number</label>
+            <input
+              value={ipdNumber}
+              onChange={(e) => setIpdNumber(e.target.value)}
+              required
+              placeholder="Enter IPD number"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none ring-[#2563EB] focus:ring-2"
+            />
+          </div>
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={saving || !ipdNumber.trim()}
+            className="w-full rounded-lg bg-[#2563EB] py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Converting…" : "Confirm"}
           </button>
         </form>
       </div>

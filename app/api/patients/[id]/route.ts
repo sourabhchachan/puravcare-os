@@ -2,13 +2,25 @@ import { NextResponse } from "next/server";
 
 import { assertActiveUser, getActorId, getUserRole } from "@/lib/api/actor";
 import { assertCeo } from "@/lib/api/ceo";
+import { SYSTEM_ADMIN_LOGIN_ID } from "@/lib/api/pin";
 import { notifyMrdMembers } from "@/lib/mrd/notify";
 import { createServiceClient } from "@/lib/supabase/service";
+
+const PATIENT_SELECT =
+  "id, uhid, full_name, age, gender, phone, admission_type, bed_number, ipd_number, admission_date, discharge_date, status";
 
 type PatchBody = {
   action?: string;
   admission_date?: string | null;
+  ipd_number?: string;
 };
+
+async function canConvertOpdToIpd(actorId: string, role: string | null): Promise<boolean> {
+  if (["ceo", "ops"].includes(role ?? "")) return true;
+  const supabase = createServiceClient();
+  const { data } = await supabase.from("users").select("login_id").eq("id", actorId).maybeSingle();
+  return data?.login_id === SYSTEM_ADMIN_LOGIN_ID;
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const actorId = getActorId(request);
@@ -110,12 +122,55 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  if (!["discharge", "readmit", "update"].includes(body.action ?? "")) {
+  if (!["discharge", "readmit", "update", "convert_to_ipd"].includes(body.action ?? "")) {
     return NextResponse.json({ error: "invalid_action" }, { status: 400 });
   }
 
   const { id } = await params;
   const supabase = createServiceClient();
+
+  if (body.action === "convert_to_ipd") {
+    const role = await getUserRole(actorId);
+    if (!(await canConvertOpdToIpd(actorId!, role))) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
+    const ipdNumber = (body.ipd_number ?? "").trim();
+    if (!ipdNumber) return NextResponse.json({ error: "missing_ipd_number" }, { status: 400 });
+
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("id, admission_type, status")
+      .eq("id", id)
+      .maybeSingle();
+    if (!patient) return NextResponse.json({ error: "not_found" }, { status: 404 });
+    if (patient.admission_type !== "opd" || patient.status !== "active") {
+      return NextResponse.json({ error: "invalid_patient_state" }, { status: 400 });
+    }
+
+    const { data: existingIpd, error: ipdErr } = await supabase
+      .from("patients")
+      .select("id")
+      .eq("ipd_number", ipdNumber)
+      .neq("id", id)
+      .maybeSingle();
+    if (ipdErr) return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+    if (existingIpd) return NextResponse.json({ error: "ipd_number_taken" }, { status: 400 });
+
+    const { data: updated, error: updateErr } = await supabase
+      .from("patients")
+      .update({
+        admission_type: "ipd",
+        ipd_number: ipdNumber,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select(PATIENT_SELECT)
+      .single();
+
+    if (updateErr || !updated) return NextResponse.json({ error: "update_failed" }, { status: 500 });
+    return NextResponse.json({ patient: updated });
+  }
 
   if (body.action === "update") {
     if (!(await assertCeo(actorId))) {
